@@ -424,6 +424,7 @@ end)
 
 local Window = Library:Window({
     Name = "index.lol",
+    Logo = "120474185165700"
 })
 
 local Watermark   = Library:Watermark("index.lol")
