@@ -110,6 +110,17 @@ local hitIndicatorSettings = {
     enabled = false,
 }
 
+local movSettings = {
+    cfrmSpeed    = false,
+    cfrmSpeedVal = 50,
+    velSpeed     = false,
+    velSpeedVal  = 50,
+    flyEnabled   = false,
+    flySpeed     = 1,
+    noclip       = false,
+    bhop         = false,
+}
+
 local autoShootSettings = {
     enabled  = false,
     vischeck = true,
@@ -421,10 +432,11 @@ KeybindList:SetVisibility(false)
 
 -- ─── Pages ───────────────────────────────────────────────────────────────────
 
-local AimbotTab   = Window:Page({ Name = "combat",   Columns = 2 })
-local VisualsTab  = Window:Page({ Name = "visuals",  Columns = 2 })
-local WorldTab    = Window:Page({ Name = "world",    Columns = 2 })
-local SettingsTab = Window:Page({ Name = "settings", Columns = 2 })
+local AimbotTab    = Window:Page({ Name = "combat",   Columns = 2 })
+local VisualsTab   = Window:Page({ Name = "visuals",  Columns = 2 })
+local WorldTab     = Window:Page({ Name = "world",    Columns = 2 })
+local MovementTab  = Window:Page({ Name = "movement", Columns = 2 })
+local SettingsTab  = Window:Page({ Name = "settings", Columns = 2 })
 
 -- ─── ESP Init ────────────────────────────────────────────────────────────────
 
@@ -648,13 +660,11 @@ BoxSection:Toggle({ Name = "animate gradient", Flag = "gradAnim", Default = true
 
 -- ─── Combat Tab ──────────────────────────────────────────────────────────────
 
-local AimSection     = AimbotTab:Section({ Name = "aimbot",        Side = 1 })
-local AimSection2    = AimbotTab:Section({ Name = "config",        Side = 2 })
-local SilentSection  = AimbotTab:Section({ Name = "silent aim",    Side = 1 })
-local SilentSection2 = AimbotTab:Section({ Name = "silent config", Side = 2 })
-local WeaponSection  = AimbotTab:Section({ Name = "weapon mods",   Side = 1 })
-local WeaponSection2 = AimbotTab:Section({ Name = "hitmarker",     Side = 2 })
-local AutoSection    = AimbotTab:Section({ Name = "triggerbot",    Side = 1 })
+local AimSection     = AimbotTab:Section({ Name = "aimbot",      Side = 1 })
+local SilentSection  = AimbotTab:Section({ Name = "silent aim",  Side = 2 })
+local WeaponSection  = AimbotTab:Section({ Name = "weapon mods", Side = 1 })
+local WeaponSection2 = AimbotTab:Section({ Name = "hitmarker",   Side = 2 })
+local AutoSection    = AimbotTab:Section({ Name = "triggerbot",  Side = 1 })
 
 -- aimbot
 AimSection:Toggle({
@@ -686,11 +696,10 @@ AimSection:Toggle({
     Name = "team check", Flag = "aimteamcheck", Default = settings.aimteamcheck,
     Callback = function(v) settings.aimteamcheck = v end
 })
-
-AimSection2:Slider({ Name = "fov",       Flag = "aimfov",       Default = settings.aimfov,                         Min = 10, Max = 800, Callback = function(v) settings.aimfov       = v       end })
-AimSection2:Slider({ Name = "smoothing", Flag = "aimsmoothing", Default = math.floor(settings.aimsmoothing * 100), Min = 0,  Max = 95,  Callback = function(v) settings.aimsmoothing = v / 100 end })
-AimSection2:Toggle({ Name = "show fov circle", Flag = "showfov", Default = settings.showfov, Callback = function(v) settings.showfov = v end })
-AimSection2:Label("fov color"):Colorpicker({
+AimSection:Slider({ Name = "fov",       Flag = "aimfov",       Default = settings.aimfov,                         Min = 10, Max = 800, Callback = function(v) settings.aimfov       = v       end })
+AimSection:Slider({ Name = "smoothing", Flag = "aimsmoothing", Default = math.floor(settings.aimsmoothing * 100), Min = 0,  Max = 95,  Callback = function(v) settings.aimsmoothing = v / 100 end })
+AimSection:Toggle({ Name = "show fov circle", Flag = "showfov", Default = settings.showfov, Callback = function(v) settings.showfov = v end })
+AimSection:Label("fov color"):Colorpicker({
     Flag = "fovcolor", Default = settings.fovcolor,
     Callback = function(c) settings.fovcolor = c end
 })
@@ -704,7 +713,7 @@ SilentSection:Dropdown({
     Items = { "head", "humanoidrootpart", "uppertorso" },
     Callback = function(v) silentSettings.targetpart = v end
 })
-SilentSection2:Slider({ Name = "fov", Flag = "silentFov", Default = 130, Min = 10, Max = 800, Callback = function(v) silentSettings.fov = v end })
+SilentSection:Slider({ Name = "fov", Flag = "silentFov", Default = 130, Min = 10, Max = 800, Callback = function(v) silentSettings.fov = v end })
 
 -- weapon mods
 WeaponSection:Toggle({ Name = "no recoil",  Flag = "noRecoil", Default = false, Callback = function(v) weaponSettings.noRecoil  = v end })
@@ -1113,6 +1122,7 @@ local function deserializeColor(t) return Color3.new(t.r, t.g, t.b) end
 
 local function buildConfig()
     return {
+        -- aimbot
         aimenable        = settings.aimenable,
         aimmode          = settings.aimmode,
         aimkey           = tostring(settings.aimkey),
@@ -1122,12 +1132,94 @@ local function buildConfig()
         aimsmoothing     = settings.aimsmoothing,
         showfov          = settings.showfov,
         fovcolor         = serializeColor(settings.fovcolor),
+        -- weapon mods
+        noRecoil         = weaponSettings.noRecoil,
+        noSpread         = weaponSettings.noSpread,
+        fireRate         = weaponSettings.fireRate,
+        fireRateMult     = weaponSettings.fireRateMult,
+        -- hitmarker
+        hitmarkerEnabled = hitmarkerSettings.enabled,
+        hitmarkerDuration= hitmarkerSettings.duration,
+        -- hit indicator
+        hitIndicator     = hitIndicatorSettings.enabled,
+        -- triggerbot
+        autoShootEnabled = autoShootSettings.enabled,
+        autoShootVis     = autoShootSettings.vischeck,
+        autoShootDelay   = autoShootSettings.delay,
+        -- silent aim
+        silentEnabled    = silentSettings.enabled,
+        silentTeamcheck  = silentSettings.teamcheck,
+        silentVischeck   = silentSettings.vischeck,
+        silentFov        = silentSettings.fov,
+        silentPart       = silentSettings.targetpart,
+        -- esp
+        espEnabled       = espCfg.Enabled,
+        espBoxes         = espCfg.Boxes,
+        espNames         = espCfg.Names,
+        espHealth        = espCfg.HealthBar.Enabled,
+        espDistance      = espCfg.Distance.Enabled,
+        espWeapon        = espCfg.Weapon.Enabled,
+        espFlags         = espCfg.Flags.Enabled,
+        espSkeleton      = espCfg.Skeleton.Enabled,
+        espBoxFill       = espCfg.BoxFill.Enabled,
+        espTeamInd       = espCfg.TeamIndicator.Enabled,
+        espChams         = espCfg.Chams.Enabled,
+        espChamType      = espCfg.Chams.Type,
+        -- hitmarker details
+        hitmarkerColor    = serializeColor(hitmarkerSettings.color),
+        hitmarkerKillColor= serializeColor(hitmarkerSettings.killColor),
+        hitmarkerDuration = hitmarkerSettings.duration,
+        autoShootDelay    = autoShootSettings.delay,
+        -- sounds
         hitSoundEnabled  = soundSettings.hitSoundEnabled,
         killSoundEnabled = soundSettings.killSoundEnabled,
         currentHitSound  = soundSettings.currentHitSound,
         currentKillSound = soundSettings.currentKillSound,
         hitVolume        = soundSettings.hitVolume,
         killVolume       = soundSettings.killVolume,
+        -- colors
+        espBoxColor      = serializeColor(espCfg.BoxColor),
+        espTextColor     = serializeColor(espCfg.TextColor),
+        espChamColor     = serializeColor(espCfg.Chams.Highlight.OutlineColor),
+        espSkelColor     = serializeColor(espCfg.Skeleton.Color),
+        espChamFill      = espCfg.Chams.Highlight.FillTransparency,
+        espBoxType       = espCfg.BoxType,
+        -- atmosphere
+        atmEnabled       = atmosphereEnabled,
+        atmDensity       = Library.Flags["atmDensity"],
+        atmOffset        = Library.Flags["atmOffset"],
+        atmHaze          = Library.Flags["atmHaze"],
+        atmGlare         = Library.Flags["atmGlare"],
+        -- skybox
+        skyboxEnabled    = skyboxEnabled,
+        skyboxPreset     = currentSkyboxName,
+        -- fov color
+        fovcolor         = serializeColor(settings.fovcolor),
+        -- health colors
+        espHealthLow     = serializeColor(Library.Flags["espHealthLow"] or Color3.fromRGB(255,50,50)),
+        espHealthHigh    = serializeColor(Library.Flags["espHealthHigh"] or Color3.fromRGB(50,255,50)),
+        espBoxFillColor  = serializeColor(Library.Flags["espBoxFillColor"] or Color3.fromRGB(0,200,255)),
+        -- misc movement
+        jumpPower        = Library.Flags["jumpPower"],
+        walkSpeed        = Library.Flags["walkSpeed"],
+        -- movement
+        cfrmSpeed        = movSettings.cfrmSpeed,
+        cfrmSpeedVal     = movSettings.cfrmSpeedVal,
+        velSpeed         = movSettings.velSpeed,
+        velSpeedVal      = movSettings.velSpeedVal,
+        flyEnabled       = movSettings.flyEnabled,
+        flySpeed         = movSettings.flySpeed,
+        noclip           = movSettings.noclip,
+        bhop             = movSettings.bhop,
+        -- viewmodel
+        vmEnabled        = viewmodelSettings.enabled,
+        vmX              = viewmodelSettings.x,
+        vmY              = viewmodelSettings.y,
+        vmZ              = viewmodelSettings.z,
+        -- ambient
+        ambientEnabled   = ambientSettings.enabled,
+        ambientBrightness= ambientSettings.brightness * 50,  -- slider is 0-200, stored as 0-4
+        ambientColor     = serializeColor(ambientSettings.color),
     }
 end
 
@@ -1151,29 +1243,159 @@ end
 local function loadConfig(name)
     local path = getConfigPath(name)
     if not isfile(path) then return false end
-    local ok, result = pcall(function() return game:GetService("HttpService"):JSONDecode(readfile(path)) end)
-    if ok and result then
-        if result.aimenable        ~= nil then settings.aimenable        = result.aimenable        end
-        if result.aimmode          ~= nil then settings.aimmode          = result.aimmode          end
-        if result.aimpart          ~= nil then settings.aimpart          = result.aimpart          end
-        if result.aimteamcheck     ~= nil then settings.aimteamcheck     = result.aimteamcheck     end
-        if result.aimfov           ~= nil then settings.aimfov           = result.aimfov           end
-        if result.aimsmoothing     ~= nil then settings.aimsmoothing     = result.aimsmoothing     end
-        if result.showfov          ~= nil then settings.showfov          = result.showfov          end
-        if result.fovcolor         then settings.fovcolor = deserializeColor(result.fovcolor) end
-        if result.aimkey then
-            local resolved = resolve_key(result.aimkey)
-            if resolved then settings.aimkey = resolved end
-        end
-        if result.hitSoundEnabled  ~= nil then soundSettings.hitSoundEnabled  = result.hitSoundEnabled  end
-        if result.killSoundEnabled ~= nil then soundSettings.killSoundEnabled = result.killSoundEnabled end
-        if result.currentHitSound  ~= nil then soundSettings.currentHitSound  = result.currentHitSound  end
-        if result.currentKillSound ~= nil then soundSettings.currentKillSound = result.currentKillSound end
-        if result.hitVolume        ~= nil then soundSettings.hitVolume        = result.hitVolume        end
-        if result.killVolume       ~= nil then soundSettings.killVolume       = result.killVolume       end
-        return true
+    local ok, r = pcall(function() return game:GetService("HttpService"):JSONDecode(readfile(path)) end)
+    if not ok or not r then return false end
+
+    -- applyFlag: use Scoot's SetFlags table which is registered for every element
+    local function applyFlag(flag, value)
+        pcall(function()
+            local setter = Library.SetFlags[flag]
+            if setter then setter(value) end
+        end)
     end
-    return false
+
+    -- aimbot
+    if r.aimenable        ~= nil then settings.aimenable    = r.aimenable;    applyFlag("aimenable",    r.aimenable)    end
+    if r.aimmode          ~= nil then settings.aimmode      = r.aimmode;      applyFlag("aimmode",      r.aimmode)      end
+    if r.aimpart          ~= nil then settings.aimpart      = r.aimpart;      applyFlag("aimpart",      r.aimpart)      end
+    if r.aimteamcheck     ~= nil then settings.aimteamcheck = r.aimteamcheck; applyFlag("aimteamcheck", r.aimteamcheck) end
+    if r.aimfov           ~= nil then settings.aimfov       = r.aimfov;       applyFlag("aimfov",       r.aimfov)       end
+    if r.aimsmoothing     ~= nil then settings.aimsmoothing = r.aimsmoothing; applyFlag("aimsmoothing", math.floor(r.aimsmoothing * 100)) end
+    if r.showfov          ~= nil then settings.showfov      = r.showfov;      applyFlag("showfov",      r.showfov)      end
+    if r.fovcolor         ~= nil then settings.fovcolor     = deserializeColor(r.fovcolor) end
+    if r.aimkey           ~= nil then
+        local resolved = resolve_key(r.aimkey)
+        if resolved then settings.aimkey = resolved end
+    end
+
+    -- weapon mods
+    if r.noRecoil     ~= nil then weaponSettings.noRecoil     = r.noRecoil;     applyFlag("noRecoil",     r.noRecoil)     end
+    if r.noSpread     ~= nil then weaponSettings.noSpread     = r.noSpread;     applyFlag("noSpread",     r.noSpread)     end
+    if r.fireRate     ~= nil then weaponSettings.fireRate     = r.fireRate;     applyFlag("fireRate",     r.fireRate)     end
+    if r.fireRateMult ~= nil then weaponSettings.fireRateMult = r.fireRateMult; applyFlag("fireRateMult", r.fireRateMult) end
+
+    -- hitmarker / indicator
+    if r.hitmarkerEnabled ~= nil then hitmarkerSettings.enabled  = r.hitmarkerEnabled;  applyFlag("hitmarkerEnabled", r.hitmarkerEnabled)  end
+    if r.hitmarkerDuration~= nil then hitmarkerSettings.duration = r.hitmarkerDuration end
+    if r.hitIndicator     ~= nil then hitIndicatorSettings.enabled = r.hitIndicator;    applyFlag("hitIndicator",     r.hitIndicator)       end
+
+    -- triggerbot
+    if r.autoShootEnabled ~= nil then autoShootSettings.enabled  = r.autoShootEnabled;  applyFlag("autoShootEnabled", r.autoShootEnabled)  end
+    if r.autoShootVis     ~= nil then autoShootSettings.vischeck = r.autoShootVis;      applyFlag("autoShootVis",     r.autoShootVis)       end
+    if r.autoShootDelay   ~= nil then autoShootSettings.delay    = r.autoShootDelay end
+
+    -- silent aim
+    if r.silentEnabled  ~= nil then silentSettings.enabled    = r.silentEnabled;   applyFlag("silentEnabled",  r.silentEnabled)   end
+    if r.silentTeamcheck ~= nil then silentSettings.teamcheck = r.silentTeamcheck; applyFlag("silentTeam", r.silentTeamcheck) end
+    if r.silentVischeck  ~= nil then silentSettings.vischeck  = r.silentVischeck;  applyFlag("silentVis",  r.silentVischeck)  end
+    if r.silentFov      ~= nil then silentSettings.fov        = r.silentFov;       applyFlag("silentFov",      r.silentFov)       end
+    if r.silentPart     ~= nil then silentSettings.targetpart = r.silentPart;      applyFlag("silentPart",     r.silentPart)      end
+
+    -- esp
+    if r.espEnabled  ~= nil then espCfg.Enabled               = r.espEnabled;  applyFlag("espEnabled",  r.espEnabled)  end
+    if r.espBoxes    ~= nil then espCfg.Boxes                 = r.espBoxes;    applyFlag("espBoxes",    r.espBoxes)    end
+    if r.espNames    ~= nil then espCfg.Names                 = r.espNames;    applyFlag("espNames",    r.espNames)    end
+    if r.espHealth   ~= nil then espCfg.HealthBar.Enabled     = r.espHealth;   applyFlag("espHealth",   r.espHealth)   end
+    if r.espDistance ~= nil then espCfg.Distance.Enabled      = r.espDistance; applyFlag("espDistance", r.espDistance) end
+    if r.espWeapon   ~= nil then espCfg.Weapon.Enabled        = r.espWeapon;   applyFlag("espWeapon",   r.espWeapon)   end
+    if r.espFlags    ~= nil then espCfg.Flags.Enabled         = r.espFlags;    applyFlag("espFlags",    r.espFlags)    end
+    if r.espSkeleton ~= nil then espCfg.Skeleton.Enabled      = r.espSkeleton; applyFlag("espSkeleton", r.espSkeleton) end
+    if r.espBoxFill  ~= nil then espCfg.BoxFill.Enabled       = r.espBoxFill;  applyFlag("espBoxFill",  r.espBoxFill)  end
+    if r.espTeamInd  ~= nil then espCfg.TeamIndicator.Enabled = r.espTeamInd;  applyFlag("espTeamInd",  r.espTeamInd)  end
+    if r.espChams    ~= nil then espCfg.Chams.Enabled         = r.espChams;    applyFlag("espChams",    r.espChams)    end
+    if r.espChamType ~= nil then espCfg.Chams.Type            = r.espChamType; applyFlag("espChamType", r.espChamType) end
+
+    -- hitmarker details
+    if r.hitmarkerColor     ~= nil then hitmarkerSettings.color     = deserializeColor(r.hitmarkerColor)     applyFlag("hitmarkerColor",     hitmarkerSettings.color)     end
+    if r.hitmarkerKillColor ~= nil then hitmarkerSettings.killColor = deserializeColor(r.hitmarkerKillColor) applyFlag("hitmarkerKillColor", hitmarkerSettings.killColor) end
+    if r.hitmarkerDuration  ~= nil then hitmarkerSettings.duration  = r.hitmarkerDuration; applyFlag("hitmarkerDuration", math.floor(r.hitmarkerDuration * 100)) end
+    if r.autoShootDelay     ~= nil then autoShootSettings.delay     = r.autoShootDelay;    applyFlag("autoShootDelay",    math.floor(r.autoShootDelay * 100))     end
+    -- sounds
+    if r.hitSoundEnabled  ~= nil then soundSettings.hitSoundEnabled  = r.hitSoundEnabled;  applyFlag("hitSoundEnabled",  r.hitSoundEnabled)  end
+    if r.killSoundEnabled ~= nil then soundSettings.killSoundEnabled = r.killSoundEnabled; applyFlag("killSoundEnabled", r.killSoundEnabled) end
+    if r.currentHitSound  ~= nil then soundSettings.currentHitSound  = r.currentHitSound;  applyFlag("hitSound",         r.currentHitSound)  end
+    if r.currentKillSound ~= nil then soundSettings.currentKillSound = r.currentKillSound; applyFlag("killSound",        r.currentKillSound) end
+    if r.hitVolume        ~= nil then soundSettings.hitVolume        = r.hitVolume;        applyFlag("hitVolume",        math.floor(r.hitVolume * 100))        end
+    if r.killVolume       ~= nil then soundSettings.killVolume       = r.killVolume;       applyFlag("killVolume",       math.floor(r.killVolume * 100))       end
+    -- colors
+    if r.espBoxColor  ~= nil then local c = deserializeColor(r.espBoxColor);  espCfg.BoxColor = c;                        applyFlag("espBoxColor",  c) end
+    if r.espTextColor ~= nil then local c = deserializeColor(r.espTextColor); espCfg.TextColor = c;                       applyFlag("espTextColor", c) end
+    if r.espChamColor ~= nil then
+        local c = deserializeColor(r.espChamColor)
+        espCfg.Chams.Highlight.OutlineColor = c
+        espCfg.Chams.Adornment.Color = c
+        applyFlag("espChamColor", c)
+    end
+    if r.espSkelColor ~= nil then local c = deserializeColor(r.espSkelColor); espCfg.Skeleton.Color = c; applyFlag("espSkelColor", c) end
+    if r.espChamFill  ~= nil then
+        espCfg.Chams.Highlight.FillTransparency = r.espChamFill
+        espCfg.Chams.Adornment.Transparency     = r.espChamFill
+        applyFlag("espChamFill", math.floor(r.espChamFill * 100))
+    end
+    if r.espBoxType   ~= nil then espCfg.BoxType = r.espBoxType; applyFlag("espBoxType", r.espBoxType) end
+    -- atmosphere: enable first so slider callbacks don't early-return
+    if r.atmEnabled ~= nil then
+        atmosphereEnabled = r.atmEnabled
+        applyFlag("atmEnabled", r.atmEnabled)
+    end
+    if r.atmDensity ~= nil then applyFlag("atmDensity", r.atmDensity) end
+    if r.atmOffset  ~= nil then applyFlag("atmOffset",  r.atmOffset)  end
+    if r.atmHaze    ~= nil then applyFlag("atmHaze",    r.atmHaze)    end
+    if r.atmGlare   ~= nil then applyFlag("atmGlare",   r.atmGlare)   end
+    -- skybox
+    -- skybox: set preset first so toggle applies the right one
+    if r.skyboxPreset  ~= nil then currentSkyboxName = r.skyboxPreset; applyFlag("skyboxPreset",  r.skyboxPreset)  end
+    if r.skyboxEnabled ~= nil then skyboxEnabled = r.skyboxEnabled;    applyFlag("skyboxEnabled", r.skyboxEnabled) end
+    -- fov color
+    if r.fovcolor ~= nil then settings.fovcolor = deserializeColor(r.fovcolor); applyFlag("fovcolor", settings.fovcolor) end
+    -- health / fill colors (colorpickers — set internal state)
+    if r.espHealthLow    ~= nil then
+        local c = deserializeColor(r.espHealthLow)
+        if espCfg.HealthBar and espCfg.HealthBar.Gradient then espCfg.HealthBar.Gradient.Color3 = c end
+        applyFlag("espHealthLow", c)
+    end
+    if r.espHealthHigh   ~= nil then
+        local c = deserializeColor(r.espHealthHigh)
+        if espCfg.HealthBar and espCfg.HealthBar.Gradient then espCfg.HealthBar.Gradient.Color1 = c end
+        applyFlag("espHealthHigh", c)
+    end
+    if r.espBoxFillColor ~= nil then
+        local c = deserializeColor(r.espBoxFillColor)
+        espCfg.BoxFill.Color = c
+        applyFlag("espBoxFillColor", c)
+    end
+    -- misc movement
+    if r.jumpPower ~= nil then applyFlag("jumpPower", r.jumpPower) end
+    if r.walkSpeed ~= nil then applyFlag("walkSpeed", r.walkSpeed) end
+    -- silent toggles
+
+    -- movement
+    if r.cfrmSpeed    ~= nil then movSettings.cfrmSpeed    = r.cfrmSpeed;    applyFlag("cfrmSpeed",    r.cfrmSpeed)    end
+    if r.cfrmSpeedVal ~= nil then movSettings.cfrmSpeedVal = r.cfrmSpeedVal; applyFlag("cfrmSpeedVal", r.cfrmSpeedVal) end
+    if r.velSpeed     ~= nil then movSettings.velSpeed     = r.velSpeed;     applyFlag("velSpeed",     r.velSpeed)     end
+    if r.velSpeedVal  ~= nil then movSettings.velSpeedVal  = r.velSpeedVal;  applyFlag("velSpeedVal",  r.velSpeedVal)  end
+    if r.flyEnabled   ~= nil then movSettings.flyEnabled   = r.flyEnabled;   applyFlag("flyEnabled",   r.flyEnabled)   end
+    if r.flySpeed     ~= nil then movSettings.flySpeed     = r.flySpeed;     applyFlag("flySpeed",     r.flySpeed)     end
+    if r.noclip       ~= nil then movSettings.noclip       = r.noclip;       applyFlag("noclip",       r.noclip)       end
+    if r.bhop         ~= nil then movSettings.bhop         = r.bhop;         applyFlag("bhop",         r.bhop)         end
+
+    -- viewmodel
+    if r.vmEnabled ~= nil then viewmodelSettings.enabled = r.vmEnabled; applyFlag("vmEnabled", r.vmEnabled) end
+    if r.vmX       ~= nil then viewmodelSettings.x       = r.vmX;       applyFlag("vmX",       r.vmX)       end
+    if r.vmY       ~= nil then viewmodelSettings.y       = r.vmY;       applyFlag("vmY",       r.vmY)       end
+    if r.vmZ       ~= nil then viewmodelSettings.z       = r.vmZ;       applyFlag("vmZ",       r.vmZ)       end
+
+    -- ambient
+    if r.ambientEnabled    ~= nil then ambientSettings.enabled    = r.ambientEnabled;    applyFlag("ambientEnabled",    r.ambientEnabled)    end
+    if r.ambientBrightness ~= nil then ambientSettings.brightness = r.ambientBrightness / 50; applyFlag("ambientBrightness", r.ambientBrightness) end
+    if r.ambientColor      ~= nil then
+        local c = deserializeColor(r.ambientColor)
+        ambientSettings.color = c
+        applyFlag("ambientColor", c)
+        if ambientSettings.enabled then game:GetService("Lighting").Ambient = c end
+    end
+
+    return true
 end
 
 local function deleteConfig(name)
@@ -1319,6 +1541,248 @@ ConfigSection:Button():Add("refresh", function()
     refreshDropdown()
     Library:Notification("refreshed", #listConfigs() .. " config(s) found", 3)
 end)
+
+-- ─── Movement Tab ────────────────────────────────────────────────────────────
+
+local SpeedSection    = MovementTab:Section({ Name = "speed",        Side = 1 })
+local FlySection      = MovementTab:Section({ Name = "fly",          Side = 1 })
+local TeleportSection = MovementTab:Section({ Name = "teleport",     Side = 2 })
+local MiscMovSection  = MovementTab:Section({ Name = "misc",         Side = 2 })
+
+-- ─── Movement State ──────────────────────────────────────────────────────────
+
+local flyConn     = nil
+local noclipConn  = nil
+local bhopConn    = nil
+
+-- ─── Speed ───────────────────────────────────────────────────────────────────
+
+-- CFrame speed: moves the HRP every heartbeat in the walk direction
+local cfrmConn = nil
+local function startCFrmSpeed()
+    if cfrmConn then cfrmConn:Disconnect() end
+    cfrmConn = runservice.Heartbeat:Connect(function()
+        if not movSettings.cfrmSpeed then return end
+        local char = localplayer.Character
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        if not hrp or not hum then return end
+        local dir = hum.MoveDirection
+        if dir.Magnitude > 0 then
+            hrp.CFrame = hrp.CFrame + dir * movSettings.cfrmSpeedVal * 0.05
+        end
+    end)
+end
+startCFrmSpeed()
+
+-- Velocity speed: sets HRP velocity in walk direction
+local velConn = nil
+local function startVelSpeed()
+    if velConn then velConn:Disconnect() end
+    velConn = runservice.Heartbeat:Connect(function()
+        if not movSettings.velSpeed then return end
+        local char = localplayer.Character
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        if not hrp or not hum then return end
+        local dir = hum.MoveDirection
+        if dir.Magnitude > 0 then
+            hrp.AssemblyLinearVelocity = dir * movSettings.velSpeedVal
+        end
+    end)
+end
+startVelSpeed()
+
+SpeedSection:Toggle({
+    Name = "cframe speed", Flag = "cfrmSpeed", Default = false,
+    Callback = function(v) movSettings.cfrmSpeed = v end
+}):Keybind({ Flag = "cfrmSpeedBind", Mode = "Toggle" })
+SpeedSection:Slider({
+    Name = "cframe speed value", Flag = "cfrmSpeedVal", Default = 50, Min = 1, Max = 300,
+    Callback = function(v) movSettings.cfrmSpeedVal = v end
+})
+SpeedSection:Toggle({
+    Name = "velocity speed", Flag = "velSpeed", Default = false,
+    Callback = function(v) movSettings.velSpeed = v end
+}):Keybind({ Flag = "velSpeedBind", Mode = "Toggle" })
+SpeedSection:Slider({
+    Name = "velocity speed value", Flag = "velSpeedVal", Default = 50, Min = 1, Max = 300,
+    Callback = function(v) movSettings.velSpeedVal = v end
+})
+
+-- ─── Fly ─────────────────────────────────────────────────────────────────────
+
+local function stopFly()
+    if flyConn then flyConn:Disconnect(); flyConn = nil end
+    local char = localplayer.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if hrp then hrp.Anchored = false end
+    if hum then hum.PlatformStand = false end
+end
+
+local function startFly()
+    stopFly()
+    local char = localplayer.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum then return end
+    hum.PlatformStand = true
+    flyConn = runservice.Heartbeat:Connect(function()
+        if not movSettings.flyEnabled then stopFly(); return end
+        local cam = workspace.CurrentCamera
+        local speed = movSettings.flySpeed
+        local cf = cam.CFrame
+        local vel = Vector3.new()
+        if userinput:IsKeyDown(Enum.KeyCode.W) then vel = vel + cf.LookVector end
+        if userinput:IsKeyDown(Enum.KeyCode.S) then vel = vel - cf.LookVector end
+        if userinput:IsKeyDown(Enum.KeyCode.A) then vel = vel - cf.RightVector end
+        if userinput:IsKeyDown(Enum.KeyCode.D) then vel = vel + cf.RightVector end
+        if userinput:IsKeyDown(Enum.KeyCode.Space) then vel = vel + Vector3.new(0,1,0) end
+        if userinput:IsKeyDown(Enum.KeyCode.LeftShift) then vel = vel - Vector3.new(0,1,0) end
+        if vel.Magnitude > 0 then
+            hrp.CFrame = hrp.CFrame + vel.Unit * speed
+        end
+        hrp.AssemblyLinearVelocity = Vector3.new()
+    end)
+end
+
+FlySection:Toggle({
+    Name = "enabled", Flag = "flyEnabled", Default = false,
+    Callback = function(v)
+        movSettings.flyEnabled = v
+        if v then startFly() else stopFly() end
+    end
+}):Keybind({ Flag = "flyBind", Mode = "Toggle" })
+FlySection:Slider({
+    Name = "speed", Flag = "flySpeed", Default = 10, Min = 1, Max = 100,
+    Callback = function(v) movSettings.flySpeed = v end
+})
+
+-- respawn fly on character added
+localplayer.CharacterAdded:Connect(function()
+    if movSettings.flyEnabled then
+        task.wait(0.5)
+        startFly()
+    end
+end)
+
+-- ─── Teleport ────────────────────────────────────────────────────────────────
+
+local function getPlayerList()
+    local list = {}
+    for _, p in ipairs(players:GetPlayers()) do
+        if p ~= localplayer then
+            table.insert(list, p.Name)
+        end
+    end
+    return list
+end
+
+local tpPlayerDropdown = TeleportSection:Dropdown({
+    Name = "player", Flag = "tpTarget", Default = nil,
+    Items = getPlayerList(),
+    Callback = function() end
+})
+
+TeleportSection:Button():Add("teleport to player", function()
+    local target = Library.Flags["tpTarget"]
+    if not target or target == "" then
+        Library:Notification("teleport", "select a player first", 3)
+        return
+    end
+    local targetPlayer = players:FindFirstChild(target)
+    local char    = localplayer.Character
+    local hrp     = char and char:FindFirstChild("HumanoidRootPart")
+    local tchar   = targetPlayer and targetPlayer.Character
+    local thrp    = tchar and tchar:FindFirstChild("HumanoidRootPart")
+    if hrp and thrp then
+        hrp.CFrame = thrp.CFrame + Vector3.new(0, 3, 0)
+    else
+        Library:Notification("teleport", "player not found", 3)
+    end
+end)
+
+TeleportSection:Button():Add("refresh list", function()
+    tpPlayerDropdown:Refresh(getPlayerList())
+end)
+
+-- ─── Misc Movement ───────────────────────────────────────────────────────────
+
+-- Noclip
+local function startNoclip()
+    if noclipConn then noclipConn:Disconnect() end
+    noclipConn = runservice.Stepped:Connect(function()
+        if not movSettings.noclip then
+            noclipConn:Disconnect(); noclipConn = nil; return
+        end
+        local char = localplayer.Character
+        if not char then return end
+        for _, p in ipairs(char:GetDescendants()) do
+            if p:IsA("BasePart") then
+                p.CanCollide = false
+            end
+        end
+    end)
+end
+
+MiscMovSection:Toggle({
+    Name = "noclip", Flag = "noclip", Default = false,
+    Callback = function(v)
+        movSettings.noclip = v
+        if v then startNoclip() else
+            local char = localplayer.Character
+            if char then
+                for _, p in ipairs(char:GetDescendants()) do
+                    if p:IsA("BasePart") then p.CanCollide = true end
+                end
+            end
+        end
+    end
+}):Keybind({ Flag = "noclipBind", Mode = "Toggle" })
+
+-- Bhop
+local function startBhop()
+    if bhopConn then bhopConn:Disconnect() end
+    bhopConn = runservice.Stepped:Connect(function()
+        if not movSettings.bhop then bhopConn:Disconnect(); bhopConn = nil; return end
+        local char = localplayer.Character
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        if not hum or not hrp then return end
+        if hum.FloorMaterial ~= Enum.Material.Air then
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end)
+end
+
+MiscMovSection:Toggle({
+    Name = "bunny hop", Flag = "bhop", Default = false,
+    Callback = function(v)
+        movSettings.bhop = v
+        if v then startBhop() end
+    end
+}):Keybind({ Flag = "bhopBind", Mode = "Toggle" })
+
+-- Jump power
+MiscMovSection:Slider({
+    Name = "jump power", Flag = "jumpPower", Default = 50, Min = 0, Max = 300,
+    Callback = function(v)
+        local char = localplayer.Character
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.JumpHeight = v end
+    end
+})
+
+-- Walkspeed (direct humanoid, separate from cframe/vel hacks)
+MiscMovSection:Slider({
+    Name = "walk speed", Flag = "walkSpeed", Default = 16, Min = 0, Max = 300,
+    Callback = function(v)
+        local char = localplayer.Character
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = v end
+    end
+})
 
 -- ─── Aimbot Logic ────────────────────────────────────────────────────────────
 
