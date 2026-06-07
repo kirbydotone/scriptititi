@@ -1,0 +1,1669 @@
+if not WYNF_OBFUSCATED then
+    WYNF_NO_VIRTUALIZE = function(fn) return fn end
+    WYNF_JIT           = function(fn) return fn end
+    WYNF_JIT_MAX       = function(fn) return fn end
+    WYNF_SECURE_CALL   = function(fn) return fn end
+    WYNF_ENC_STRING    = function(s)  return s   end
+    WYNF_ENC_NUM       = function(n)  return n   end
+    WYNF_CRASH         = function()   error("crash") end
+end
+
+if not LPH_OBFUSCATED then
+    LPH_JIT            = function(Function) return Function end
+    LPH_JIT_MAX        = function(Function) return Function end
+    LPH_NO_VIRTUALIZE  = function(Function) return Function end
+    LPH_NO_UPVALUES    = function(Function) return function(...) return Function(...) end end
+    LPH_ENCSTR         = function(String) return String end
+    LPH_ENCNUM         = function(Number) return Number end
+    LPH_CRASH          = function() return print("crash >:(") end
+end
+
+local LoadingTick = os.clock()
+
+local players      = game:GetService("Players")
+local runservice   = game:GetService("RunService")
+local userinput    = game:GetService("UserInputService")
+local Lighting     = game:GetService("Lighting")
+local rs           = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local localplayer = players.LocalPlayer
+local playergui   = localplayer:WaitForChild("PlayerGui")
+
+-- ─── Optimization ────────────────────────────────────────────────────────────
+-- Cache frequently used globals to avoid repeated global lookups (helps a lot
+-- when obfuscated since virtualized code hits globals very often).
+
+local mathClamp  = math.clamp
+local mathFloor  = math.floor
+local mathAbs    = math.abs
+local mathTan    = math.tan
+local mathRad    = math.rad
+local mathHuge   = math.huge
+local tableInsert = table.insert
+local tableClear  = table.clear
+local stringFormat = string.format
+local ipairsRef  = ipairs
+local pairsRef   = pairs
+local tickRef    = tick
+local taskSpawn  = task.spawn
+local taskDelay  = task.delay
+local taskWait   = task.wait
+local pcallRef   = pcall
+
+-- ─── Mobile Detection ────────────────────────────────────────────────────────
+
+local isMobile = userinput.TouchEnabled and not userinput.KeyboardEnabled
+
+-- ─── Game Support Check ──────────────────────────────────────────────────────
+
+local gameSupported = (function()
+    local ok, result = pcall(function()
+        return rs:FindFirstChild("Items") ~= nil
+            and rs.Items:FindFirstChild("Skin") ~= nil
+            and rs.Items:FindFirstChild("Knife") ~= nil
+            and rs:FindFirstChild("Weapons") ~= nil
+    end)
+    return ok and result
+end)()
+
+-- ─── Device Event ────────────────────────────────────────────────────────────
+
+local DeviceEvent = (function()
+    local ge = rs:FindFirstChild("GameEvents")
+    if ge then return ge:FindFirstChild("DeviceUpdate") end
+    return nil
+end)()
+
+-- ─── Load Scoot Library ──────────────────────────────────────────────────────
+
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/sametexe001/sametlibs/refs/heads/main/Scoot/Library.lua"))()
+
+-- ─── Load SensoryESP ─────────────────────────────────────────────────────────
+
+local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/rthusrtghdfhtyjkehrfh/sensoryESP/refs/heads/main/ESP.lua"))()
+
+-- ─── Settings Tables ─────────────────────────────────────────────────────────
+
+local staffDetectorEnabled = true
+
+local hitSettings = {
+    notifyEnabled  = true,
+    notifyDuration = 3,
+}
+
+local weaponSettings = {
+    noRecoil     = false,
+    noSpread     = false,
+    fireRate     = false,
+    fireRateMult = 2,
+}
+
+local hitmarkerSettings = {
+    enabled   = false,
+    duration  = 0.5,
+    color     = Color3.fromRGB(255, 50, 50),
+    killColor = Color3.fromRGB(255, 200, 0),
+}
+
+local hitIndicatorSettings = {
+    enabled = false,
+}
+
+local autoShootSettings = {
+    enabled  = false,
+    vischeck = true,
+    delay    = 0.1,
+}
+
+local silentSettings = {
+    enabled    = false,
+    teamcheck  = true,
+    vischeck   = false,
+    fov        = 130,
+    targetpart = "head",
+}
+
+local viewmodelSettings = {
+    enabled = false,
+    x       = 0,
+    y       = 0,
+    z       = 0,
+}
+
+local ambientSettings = {
+    enabled    = false,
+    color      = Color3.fromRGB(255, 255, 255),
+    brightness = 1,
+}
+
+local watchedUsers = {
+    [128547037]  = "tester",
+    [1089888905] = "tester",
+    [4269359593] = "tester",
+    [4621670832] = "tester",
+    [411845421]  = "tester",
+    [1066505679] = "tester",
+    [550183999]  = "tester",
+    [7032328813] = "tester",
+    [7660433176] = "tester",
+    [1932714775] = "tester",
+    [644109069]  = "tester",
+    [8300163915] = "tester",
+    [1885942346] = "tester",
+    [94409100]   = "moderator",
+    [7017152868] = "moderator",
+    [70838151]   = "moderator",
+    [4323561112] = "moderator",
+    [1474440307] = "moderator",
+    [2469896978] = "moderator",
+    [1475316060] = "developer",
+    [22502596]   = "head admin",
+    [544645921]  = "founder",
+}
+
+local detectedUsers = {}
+
+-- ─── Sounds ──────────────────────────────────────────────────────────────────
+
+local AllSounds = {
+    ["default"]   = "160432334",
+    ["dink"]      = "988593556",
+    ["tf2"]       = "8255306220",
+    ["gamesense"] = "4817809188",
+    ["rust"]      = "1255040462",
+    ["neverlose"] = "8726881116",
+    ["bubble"]    = "198598793",
+    ["bubble2"]   = "132948338000932",
+    ["quake"]     = "1455817260",
+    ["among-us"]  = "7227567562",
+    ["ding"]      = "72656167409567",
+    ["minecraft"] = "6361963422",
+    ["blackout"]  = "3748776946",
+    ["osu"]       = "7151989073",
+    ["paintball"] = "117404476273393",
+    ["key"]       = "140134596265975",
+    ["hit"]       = "133749572213659",
+    ["bamboo"]    = "123464486116204",
+    ["skeet"]     = "80534344648365",
+    ["critical"]  = "13471740561",
+    ["sonicexe"]  = "137584754609456",
+    ["hint"]      = "134763632925481",
+    ["slap"]      = "121788398947572",
+    ["bell"]      = "124010691633262",
+}
+
+local HitSounds  = AllSounds
+local KillSounds = AllSounds
+
+local soundSettings = {
+    hitSoundEnabled  = true,
+    killSoundEnabled = true,
+    currentHitSound  = "default",
+    currentKillSound = "default",
+    hitVolume        = 0.5,
+    killVolume       = 0.5,
+}
+
+local mutedConnections          = {}
+local characterAddedConnections = {}
+local activeSounds              = {}
+
+local PlaySound = WYNF_NO_VIRTUALIZE(function(soundId, volume)
+    if not soundId or soundId == "" then return end
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://" .. soundId
+    sound.Volume  = volume
+    sound.Parent  = workspace.CurrentCamera
+    sound:Play()
+    activeSounds[sound] = true
+    sound.Ended:Connect(function() activeSounds[sound] = nil end)
+    game:GetService("Debris"):AddItem(sound, 3)
+end)
+
+local REAL_HITMARKER_ID    = "rbxassetid://" .. WYNF_ENC_STRING("76962155018")
+local descendantConnection = nil
+
+local muteSound = WYNF_NO_VIRTUALIZE(function(sound)
+    if not sound:IsA("Sound") then return end
+    if not (soundSettings.hitSoundEnabled or soundSettings.killSoundEnabled) then return end
+    if tostring(sound.SoundId) == REAL_HITMARKER_ID or sound.Name == "HitMarker" or sound.Name == "Hit" then
+        sound.Volume = 0
+        if not mutedConnections[sound] then
+            mutedConnections[sound] = sound:GetPropertyChangedSignal("Volume"):Connect(function()
+                if soundSettings.hitSoundEnabled or soundSettings.killSoundEnabled then
+                    sound.Volume = 0
+                end
+            end)
+        end
+    end
+end)
+
+local function MuteGameHitSounds()
+    if descendantConnection then
+        descendantConnection:Disconnect()
+        descendantConnection = nil
+    end
+    for _, v in ipairs(workspace:GetDescendants()) do muteSound(v) end
+    descendantConnection = game.DescendantAdded:Connect(muteSound)
+end
+
+local FIRE_LINGER_SECONDS = 0.6
+local recentTargets       = {}
+
+local resolvePlayerFromDescendant = WYNF_SECURE_CALL(function(inst)
+    local current = inst
+    while current and current ~= workspace do
+        local parent = current.Parent
+        if parent == workspace then
+            for _, p in pairs(players:GetPlayers()) do
+                if p.Character == current then return p end
+            end
+            return nil
+        end
+        current = parent
+    end
+    return nil
+end)
+
+local hitmarkerWatcher = nil
+local FlashHitmarker   = nil
+local WM_Clients       = {}
+
+local function SetupHitDetection()
+    local lastHitTime  = 0
+    local lastKillTime = 0
+    local COOLDOWN     = 0.15
+
+    local function onHitSoundAdded(sound)
+        if not sound:IsA("Sound") then return end
+        if sound.Name ~= "HitMarker" and sound.Name ~= "Hit" then return end
+        if not sound:IsDescendantOf(workspace) then return end
+        if sound.Parent == workspace then return end
+
+        sound.Volume = 0
+        if not mutedConnections[sound] then
+            mutedConnections[sound] = sound:GetPropertyChangedSignal("Volume"):Connect(function()
+                sound.Volume = 0
+            end)
+        end
+
+        local hitPlayer = resolvePlayerFromDescendant(sound)
+        if not hitPlayer then return end
+
+        local expiry = recentTargets[hitPlayer]
+        if not expiry or tick() > expiry then return end
+
+        task.defer(function()
+            local now    = tick()
+            local isKill = false
+            if hitPlayer.Character then
+                local hum = hitPlayer.Character:FindFirstChildOfClass("Humanoid")
+                isKill = hum ~= nil and hum.Health <= 0
+            end
+
+            if hitSettings.notifyEnabled then
+                task.spawn(function()
+                    pcall(function()
+                        local lc   = localplayer.Character
+                        local lhrp = lc and lc:FindFirstChild("HumanoidRootPart")
+                        local ehrp = hitPlayer.Character and hitPlayer.Character:FindFirstChild("HumanoidRootPart")
+                        local dist = (lhrp and ehrp) and math.floor((lhrp.Position - ehrp.Position).Magnitude / 3) or 0
+                        local msg  = isKill
+                            and ("killed " .. hitPlayer.Name .. " [" .. dist .. "m]")
+                            or  ("hit "    .. hitPlayer.Name .. " [" .. dist .. "m]")
+                        Library:Notification("Hit", msg, 3)
+                    end)
+                end)
+            end
+
+            pcall(function()
+                local dmg = nil
+                for _, wc in pairs(WM_Clients or {}) do
+                    dmg = wc.TorsoDamage or wc.BodyDamage
+                    break
+                end
+                FlashHitmarker(hitPlayer, isKill, dmg)
+            end)
+
+            if isKill then
+                if now - lastKillTime >= COOLDOWN then
+                    lastKillTime = now
+                    if soundSettings.killSoundEnabled then
+                        PlaySound(KillSounds[soundSettings.currentKillSound], soundSettings.killVolume)
+                    end
+                end
+            else
+                if now - lastHitTime >= COOLDOWN then
+                    lastHitTime = now
+                    if soundSettings.hitSoundEnabled then
+                        PlaySound(HitSounds[soundSettings.currentHitSound], soundSettings.hitVolume)
+                    end
+                end
+            end
+        end)
+    end
+
+    hitmarkerWatcher = workspace.DescendantAdded:Connect(onHitSoundAdded)
+    for _, v in ipairs(workspace:GetDescendants()) do
+        if v:IsA("Sound") and (v.Name == "HitMarker" or v.Name == "Hit") then
+            onHitSoundAdded(v)
+        end
+    end
+
+    if localplayer.Character then MuteGameHitSounds() end
+    table.insert(characterAddedConnections, localplayer.CharacterAdded:Connect(MuteGameHitSounds))
+end
+
+-- ─── Aimbot Settings ─────────────────────────────────────────────────────────
+
+local settings = {
+    espteamcheck = true,
+    aimenable    = false,
+    aimmode      = "hold",
+    aimkey       = Enum.KeyCode.Q,
+    aimpart      = "head",
+    aimteamcheck = true,
+    aimfov       = 150,
+    aimsmoothing = 0.25,
+    showfov      = true,
+    fovcolor     = Color3.fromRGB(255, 255, 255),
+}
+
+local aim_toggled = false
+local esp_conn    = nil
+local unloading   = false
+
+local fov_circle = Drawing.new("Circle")
+fov_circle.Filled       = false
+fov_circle.Transparency = 1
+fov_circle.Thickness    = 1
+fov_circle.NumSides     = 64
+fov_circle.Visible      = false
+
+local resolve_key = WYNF_NO_VIRTUALIZE(function(key)
+    if typeof(key) == "EnumItem" then return key end
+    if type(key) == "string" then
+        local stripped = key:match("%.([^%.]+)$") or key
+        local ok1, r1 = pcall(function() return Enum.KeyCode[stripped] end)
+        if ok1 and typeof(r1) == "EnumItem" then return r1 end
+        local ok2, r2 = pcall(function() return Enum.UserInputType[stripped] end)
+        if ok2 and typeof(r2) == "EnumItem" then return r2 end
+    end
+    return nil
+end)
+
+local is_key_down = WYNF_NO_VIRTUALIZE(function()
+    local key = resolve_key(settings.aimkey)
+    if not key then return false end
+    if key.EnumType == Enum.KeyCode then return userinput:IsKeyDown(key) end
+    if key.EnumType == Enum.UserInputType then return userinput:IsMouseButtonPressed(key) end
+    return false
+end)
+
+local input_matches_aimkey = WYNF_NO_VIRTUALIZE(function(input)
+    local key = resolve_key(settings.aimkey)
+    if not key then return false end
+    if key.EnumType == Enum.KeyCode then return input.KeyCode == key end
+    if key.EnumType == Enum.UserInputType then return input.UserInputType == key end
+    return false
+end)
+
+-- ─── Window ──────────────────────────────────────────────────────────────────
+
+local Window = Library:Window({
+    Name = "index.lol",
+})
+
+local Watermark   = Library:Watermark("index.lol")
+local KeybindList = Library:KeybindList()
+KeybindList:SetVisibility(false)
+
+-- ─── Pages ───────────────────────────────────────────────────────────────────
+
+local AimbotTab   = Window:Page({ Name = "combat",   Columns = 2 })
+local VisualsTab  = Window:Page({ Name = "visuals",  Columns = 2 })
+local WorldTab    = Window:Page({ Name = "world",    Columns = 2 })
+local SettingsTab = Window:Page({ Name = "settings", Columns = 2 })
+
+-- ─── ESP Init ────────────────────────────────────────────────────────────────
+
+local espInstance = ESP:Load({
+    Enabled       = true,
+    Players       = true,
+    LocalPlayer   = false,
+    LimitFPS      = 70,
+    DynamicBoxes  = false,
+    Boxes         = true,
+    BoxType       = "Normal",
+    BoxColor      = Color3.fromRGB(255, 255, 255),
+    BoxThickness  = 1,
+    Outlines      = { Enabled = true, Color = Color3.fromRGB(0, 0, 0), Thickness = 1 },
+    BoxFill = {
+        Enabled      = true,
+        Color        = Color3.fromRGB(255, 255, 255),
+        Transparency = 0.9,
+        Gradient = {
+            Enabled   = true,
+            Color1    = Color3.fromRGB(180, 255, 255),
+            Color2    = Color3.fromRGB(0, 255, 255),
+            Color3    = Color3.fromRGB(0, 120, 255),
+            Rotation  = 0,
+            Animated  = true,
+            Speed     = 64,
+            Direction = "Right",
+        }
+    },
+    HealthBar = {
+        Enabled                 = true,
+        Position                = "Left",
+        SideGap                 = 2,
+        Width                   = 2,
+        ShowText                = true,
+        TextFollowBar           = true,
+        HideWhenFullHP          = true,
+        FollowGradientColorText = true,
+        Outline  = { Enabled = true, Color = Color3.fromRGB(0, 0, 0) },
+        Gradient = {
+            Enabled = true,
+            Color1  = Color3.fromRGB(0, 255, 0),
+            Color2  = Color3.fromRGB(255, 255, 0),
+            Color3  = Color3.fromRGB(255, 0, 0),
+        }
+    },
+    Names       = true,
+    TextSize    = 12,
+    TextColor   = Color3.fromRGB(255, 255, 255),
+    TextOutline = true,
+    TextGap     = 3,
+    Font        = "Proggy Clean",
+    TeamIndicator = {
+        Enabled      = true,
+        Position     = "Right",
+        UseTeamColor = true,
+        Compact      = true,
+        TextSize     = 10,
+    },
+    FriendlyIndicator = {
+        Enabled      = true,
+        Position     = "Right",
+        CheckTeam    = true,
+        CheckFriends = true,
+        Text         = "[f]",
+        Color        = Color3.fromRGB(0, 255, 0),
+    },
+    Weapon = {
+        Enabled         = true,
+        Gap             = 1,
+        UseToolFallback = true,
+    },
+    Flags = {
+        Enabled  = true,
+        Position = "Right",
+        SideGap  = 4,
+        TextGap  = 2,
+        Font     = "Smallest Pixel-7",
+        TextSize = 9,
+        Options  = { Idle = false, Moving = true, Jumping = true, Swimming = true },
+        Colors   = {
+            Idle     = Color3.fromRGB(255, 255, 255),
+            Moving   = Color3.fromRGB(255, 255, 255),
+            Jumping  = Color3.fromRGB(255, 255, 255),
+            Swimming = Color3.fromRGB(65, 65, 255),
+        }
+    },
+    Skeleton = {
+        Enabled      = false,
+        Color        = Color3.fromRGB(255, 255, 255),
+        Outline      = true,
+        OutlineColor = Color3.fromRGB(0, 0, 0),
+        Thickness    = 1,
+    },
+    Distance = {
+        Enabled       = true,
+        Unit          = "Meters",
+        StudsPerMeter = 3,
+        Ending        = "",
+        Gap           = 3,
+    },
+    Chams = {
+        Enabled = true,
+        Type    = "Highlight",
+        Highlight = {
+            FillColor           = Color3.fromRGB(255, 255, 255),
+            FillTransparency    = 1,
+            OutlineColor        = Color3.fromRGB(255, 255, 255),
+            OutlineTransparency = 0,
+            VisibleCheck        = false,
+        },
+        Adornment = {
+            Color        = Color3.fromRGB(59, 144, 204),
+            VisibleColor = Color3.fromRGB(59, 204, 90),
+            Transparency = 0.7,
+            AlwaysOnTop  = true,
+            VisibleCheck = false,
+        },
+        MeshChams = {
+            FillColor           = Color3.fromRGB(59, 144, 204),
+            FillTransparency    = 0.6,
+            OutlineColor        = Color3.fromRGB(255, 255, 255),
+            OutlineTransparency = 0,
+            VisibleCheck        = false,
+        },
+    },
+    Keybind     = { Enabled = false },
+    Directories = {},
+})
+
+local espCfg = espInstance:GetConfig()
+
+-- ─── Visuals Tab ─────────────────────────────────────────────────────────────
+
+local ESPSection   = VisualsTab:Section({ Name = "esp",    Side = 1 })
+local ChamSection  = VisualsTab:Section({ Name = "chams",  Side = 1 })
+local ColorSection = VisualsTab:Section({ Name = "colors", Side = 2 })
+local BoxSection   = VisualsTab:Section({ Name = "box",    Side = 2 })
+
+ESPSection:Toggle({ Name = "enabled",       Flag = "espEnabled",  Default = true,  Callback = function(v) espCfg.Enabled               = v end })
+ESPSection:Toggle({ Name = "boxes",         Flag = "espBoxes",    Default = true,  Callback = function(v) espCfg.Boxes                 = v end })
+ESPSection:Toggle({ Name = "names",         Flag = "espNames",    Default = true,  Callback = function(v) espCfg.Names                 = v end })
+ESPSection:Toggle({ Name = "health bar",    Flag = "espHealth",   Default = true,  Callback = function(v) espCfg.HealthBar.Enabled     = v end })
+ESPSection:Toggle({ Name = "distance",      Flag = "espDistance", Default = true,  Callback = function(v) espCfg.Distance.Enabled      = v end })
+ESPSection:Toggle({ Name = "weapon",        Flag = "espWeapon",   Default = true,  Callback = function(v) espCfg.Weapon.Enabled        = v end })
+ESPSection:Toggle({ Name = "flags",         Flag = "espFlags",    Default = true,  Callback = function(v) espCfg.Flags.Enabled         = v end })
+ESPSection:Toggle({ Name = "skeleton",      Flag = "espSkeleton", Default = false, Callback = function(v) espCfg.Skeleton.Enabled      = v end })
+ESPSection:Toggle({ Name = "box fill",      Flag = "espBoxFill",  Default = true,  Callback = function(v) espCfg.BoxFill.Enabled       = v end })
+ESPSection:Toggle({ Name = "team indicator",Flag = "espTeamInd",  Default = true,  Callback = function(v) espCfg.TeamIndicator.Enabled = v end })
+
+ESPSection:Dropdown({
+    Name = "box type", Flag = "espBoxType", Default = "Normal",
+    Items = { "Normal", "Corner", "Circle" },
+    Callback = function(v) espCfg.BoxType = v end
+})
+
+ChamSection:Toggle({ Name = "chams", Flag = "espChams", Default = true, Callback = function(v) espCfg.Chams.Enabled = v end })
+
+ChamSection:Dropdown({
+    Name = "cham type", Flag = "espChamType", Default = "Highlight",
+    Items = { "Highlight", "Adornment" },
+    Callback = function(v) espCfg.Chams.Type = v end
+})
+
+ChamSection:Slider({
+    Name = "fill transparency", Flag = "espChamFill", Default = 60, Min = 0, Max = 100,
+    Callback = function(v)
+        espCfg.Chams.Highlight.FillTransparency = v / 100
+        espCfg.Chams.Adornment.Transparency     = v / 100
+    end
+})
+
+-- colors
+ColorSection:Label("box color"):Colorpicker({
+    Flag = "espBoxColor", Default = Color3.fromRGB(255, 255, 255),
+    Callback = function(c) espCfg.BoxColor = c end
+})
+ColorSection:Label("text color"):Colorpicker({
+    Flag = "espTextColor", Default = Color3.fromRGB(255, 255, 255),
+    Callback = function(c) espCfg.TextColor = c end
+})
+ColorSection:Label("health low"):Colorpicker({
+    Flag = "espHealthLow", Default = Color3.fromRGB(255, 50, 50),
+    Callback = function(c)
+        if espCfg.HealthBar and espCfg.HealthBar.Gradient then
+            espCfg.HealthBar.Gradient.Color3 = c
+        end
+    end
+})
+ColorSection:Label("health high"):Colorpicker({
+    Flag = "espHealthHigh", Default = Color3.fromRGB(50, 255, 50),
+    Callback = function(c)
+        if espCfg.HealthBar and espCfg.HealthBar.Gradient then
+            espCfg.HealthBar.Gradient.Color1 = c
+        end
+    end
+})
+ColorSection:Label("cham color"):Colorpicker({
+    Flag = "espChamColor", Default = Color3.fromRGB(59, 144, 204),
+    Callback = function(c)
+        espCfg.Chams.Highlight.OutlineColor = c
+        espCfg.Chams.Adornment.Color        = c
+    end
+})
+ColorSection:Label("skel color"):Colorpicker({
+    Flag = "espSkelColor", Default = Color3.fromRGB(255, 255, 255),
+    Callback = function(c) espCfg.Skeleton.Color = c end
+})
+BoxSection:Label("box fill color"):Colorpicker({
+    Flag = "espBoxFillColor", Default = Color3.fromRGB(0, 200, 255),
+    Callback = function(c)
+        espCfg.BoxFill.Color = c
+        if espCfg.BoxFill.Gradient then
+            espCfg.BoxFill.Gradient.Color1 = c
+            espCfg.BoxFill.Gradient.Color2 = c
+            espCfg.BoxFill.Gradient.Color3 = c
+        end
+    end
+})
+BoxSection:Toggle({ Name = "animate gradient", Flag = "gradAnim", Default = true, Callback = function(v) espCfg.BoxFill.Gradient.Animated = v end })
+
+-- ─── Combat Tab ──────────────────────────────────────────────────────────────
+
+local AimSection     = AimbotTab:Section({ Name = "aimbot",        Side = 1 })
+local AimSection2    = AimbotTab:Section({ Name = "config",        Side = 2 })
+local SilentSection  = AimbotTab:Section({ Name = "silent aim",    Side = 1 })
+local SilentSection2 = AimbotTab:Section({ Name = "silent config", Side = 2 })
+local WeaponSection  = AimbotTab:Section({ Name = "weapon mods",   Side = 1 })
+local WeaponSection2 = AimbotTab:Section({ Name = "hitmarker",     Side = 2 })
+local AutoSection    = AimbotTab:Section({ Name = "triggerbot",    Side = 1 })
+
+-- aimbot
+AimSection:Toggle({
+    Name = "enabled", Flag = "aimenable", Default = settings.aimenable,
+    Callback = function(v) settings.aimenable = v; if not v then aim_toggled = false end end
+})
+AimSection:Dropdown({
+    Name = "mode", Flag = "aimmode", Default = "hold",
+    Items = { "hold", "toggle", "always" },
+    Callback = function(v) settings.aimmode = v; aim_toggled = false end
+})
+local aimKeyLabel = AimSection:Label("aim key")
+local aimKeybind  = aimKeyLabel:Keybind({
+    Flag = "aimkey", Default = settings.aimkey, Mode = "Hold",
+    Callback = function()
+        local flagData = Library.Flags["aimkey"]
+        if flagData and flagData.Key then
+            local resolved = resolve_key(flagData.Key)
+            if resolved then settings.aimkey = resolved end
+        end
+    end
+})
+AimSection:Dropdown({
+    Name = "target part", Flag = "aimpart", Default = "head",
+    Items = { "head", "upper torso", "humanoidrootpart" },
+    Callback = function(v) settings.aimpart = v end
+})
+AimSection:Toggle({
+    Name = "team check", Flag = "aimteamcheck", Default = settings.aimteamcheck,
+    Callback = function(v) settings.aimteamcheck = v end
+})
+
+AimSection2:Slider({ Name = "fov",       Flag = "aimfov",       Default = settings.aimfov,                         Min = 10, Max = 800, Callback = function(v) settings.aimfov       = v       end })
+AimSection2:Slider({ Name = "smoothing", Flag = "aimsmoothing", Default = math.floor(settings.aimsmoothing * 100), Min = 0,  Max = 95,  Callback = function(v) settings.aimsmoothing = v / 100 end })
+AimSection2:Toggle({ Name = "show fov circle", Flag = "showfov", Default = settings.showfov, Callback = function(v) settings.showfov = v end })
+AimSection2:Label("fov color"):Colorpicker({
+    Flag = "fovcolor", Default = settings.fovcolor,
+    Callback = function(c) settings.fovcolor = c end
+})
+
+-- silent aim
+SilentSection:Toggle({ Name = "enabled",       Flag = "silentEnabled", Default = false, Callback = function(v) silentSettings.enabled   = v end })
+SilentSection:Toggle({ Name = "team check",    Flag = "silentTeam",    Default = true,  Callback = function(v) silentSettings.teamcheck  = v end })
+SilentSection:Toggle({ Name = "visible check", Flag = "silentVis",     Default = false, Callback = function(v) silentSettings.vischeck   = v end })
+SilentSection:Dropdown({
+    Name = "target part", Flag = "silentPart", Default = "head",
+    Items = { "head", "humanoidrootpart", "uppertorso" },
+    Callback = function(v) silentSettings.targetpart = v end
+})
+SilentSection2:Slider({ Name = "fov", Flag = "silentFov", Default = 130, Min = 10, Max = 800, Callback = function(v) silentSettings.fov = v end })
+
+-- weapon mods
+WeaponSection:Toggle({ Name = "no recoil",  Flag = "noRecoil", Default = false, Callback = function(v) weaponSettings.noRecoil  = v end })
+WeaponSection:Toggle({ Name = "no spread",  Flag = "noSpread", Default = false, Callback = function(v) weaponSettings.noSpread  = v end })
+WeaponSection:Toggle({ Name = "rapid fire", Flag = "fireRate", Default = false, Callback = function(v) weaponSettings.fireRate  = v end })
+WeaponSection:Slider({ Name = "firerate multiplier", Flag = "fireRateMult", Default = 2, Min = 1, Max = 10, Callback = function(v) weaponSettings.fireRateMult = v end })
+
+-- hitmarker
+WeaponSection2:Toggle({ Name = "hitmarker",     Flag = "hitmarkerEnabled", Default = false, Callback = function(v) hitmarkerSettings.enabled = v end })
+WeaponSection2:Toggle({ Name = "hit indicator", Flag = "hitIndicator",     Default = false, Callback = function(v) hitIndicatorSettings.enabled = v end })
+WeaponSection2:Label("hit color"):Colorpicker({
+    Flag = "hitmarkerColor", Default = Color3.fromRGB(255, 50, 50),
+    Callback = function(c) hitmarkerSettings.color = c end
+})
+WeaponSection2:Label("kill color"):Colorpicker({
+    Flag = "hitmarkerKillColor", Default = Color3.fromRGB(255, 200, 0),
+    Callback = function(c) hitmarkerSettings.killColor = c end
+})
+WeaponSection2:Slider({ Name = "duration", Flag = "hitmarkerDuration", Default = 50, Min = 10, Max = 200, Callback = function(v) hitmarkerSettings.duration = v / 100 end })
+
+-- triggerbot
+AutoSection:Toggle({ Name = "enabled",       Flag = "autoShootEnabled", Default = false, Callback = function(v) autoShootSettings.enabled  = v end })
+AutoSection:Toggle({ Name = "visible check", Flag = "autoShootVis",     Default = true,  Callback = function(v) autoShootSettings.vischeck  = v end })
+AutoSection:Slider({ Name = "shoot delay",   Flag = "autoShootDelay",   Default = 10, Min = 1, Max = 100, Callback = function(v) autoShootSettings.delay = v / 100 end })
+
+-- ─── World Tab ───────────────────────────────────────────────────────────────
+
+local SoundSection   = WorldTab:Section({ Name = "sounds",     Side = 1 })
+local SkySection     = WorldTab:Section({ Name = "skybox",     Side = 1 })
+local VMSection      = WorldTab:Section({ Name = "viewmodel",  Side = 1 })
+local AtmSection     = WorldTab:Section({ Name = "atmosphere", Side = 2 })
+local AmbientSection = WorldTab:Section({ Name = "ambient",    Side = 2 })
+
+-- sounds
+local hitSoundOptions = {}
+for name in pairs(HitSounds) do table.insert(hitSoundOptions, name) end
+table.sort(hitSoundOptions)
+
+SoundSection:Toggle({
+    Name = "enable hit sounds", Flag = "hitSoundEnabled", Default = true,
+    Callback = function(v)
+        soundSettings.hitSoundEnabled = v
+        if not v then
+            for _, s in ipairs(game:GetDescendants()) do
+                if s:IsA("Sound") and s.Name == "HitMarker" then s.Volume = 1 end
+            end
+        end
+    end
+})
+SoundSection:Dropdown({ Name = "hit sound",  Flag = "hitSound",  Items = hitSoundOptions, Default = "default", Callback = function(v) soundSettings.currentHitSound  = v end })
+SoundSection:Slider({  Name = "hit volume",  Flag = "hitVolume", Min = 0, Max = 100, Default = 50,            Callback = function(v) soundSettings.hitVolume         = v / 100 end })
+SoundSection:Button():Add("test hit sound", function()
+    if soundSettings.hitSoundEnabled then
+        PlaySound(HitSounds[soundSettings.currentHitSound], soundSettings.hitVolume)
+    end
+end)
+
+local killSoundOptions = {}
+for name in pairs(KillSounds) do table.insert(killSoundOptions, name) end
+table.sort(killSoundOptions)
+
+SoundSection:Toggle({ Name = "enable kill sounds", Flag = "killSoundEnabled", Default = true, Callback = function(v) soundSettings.killSoundEnabled = v end })
+SoundSection:Dropdown({ Name = "kill sound",  Flag = "killSound",  Items = killSoundOptions, Default = "default", Callback = function(v) soundSettings.currentKillSound = v end })
+SoundSection:Slider({  Name = "kill volume",  Flag = "killVolume", Min = 0, Max = 100, Default = 50,             Callback = function(v) soundSettings.killVolume        = v / 100 end })
+SoundSection:Button():Add("test kill sound", function()
+    if soundSettings.killSoundEnabled then
+        PlaySound(KillSounds[soundSettings.currentKillSound], soundSettings.killVolume)
+    end
+end)
+
+-- skybox
+local skyboxes = {
+    ["galaxy"]        = { "15125283003","15125281008","15125277539","15125279325","15125274388","15125275800" },
+    ["vaporwave"]     = { "1417494030","1417494146","1417494253","1417494402","1417494499","1417494643" },
+    ["redshift"]      = { "401664839","401664862","401664960","401664881","401664901","401664936" },
+    ["desert"]        = { "1013852","1013853","1013850","1013851","1013849","1013854" },
+    ["blaze"]         = { "150939022","150939038","150939047","150939056","150939063","150939082" },
+    ["among us"]      = { "5752463190","5752463190","5752463190","5752463190","5752463190","5752463190" },
+    ["space wave"]    = { "1233158420","1233158838","1233157105","1233157640","1233157995","1233159158" },
+    ["turquoise"]     = { "47974894","47974690","47974821","47974776","47974859","47974909" },
+    ["dark night"]    = { "6285719338","6285721078","6285722964","6285724682","6285726335","6285730635" },
+    ["bright pink"]   = { "271042516","271077243","271042556","271042310","271042467","271077958" },
+    ["oblivion lost"] = { "5103110171","5102993828","5103111020","5103112417","5103113734","5102993828" },
+    ["setting sun"]   = { "626460377","626460216","626460513","626473032","626458639","626460625" },
+}
+
+local skyboxKeys = {}
+for k in next, skyboxes do table.insert(skyboxKeys, k) end
+table.sort(skyboxKeys)
+
+local currentSkyboxName = "galaxy"
+local skyboxEnabled     = false
+
+local applySkybox = WYNF_NO_VIRTUALIZE(function(name)
+    local ids = skyboxes[name]
+    if not ids then return end
+    local sky = Lighting:FindFirstChildOfClass("Sky") or Instance.new("Sky")
+    sky.Name     = "INDEX_SKY"; sky.Parent = Lighting
+    sky.SkyboxBk = "rbxassetid://" .. ids[1]
+    sky.SkyboxDn = "rbxassetid://" .. ids[2]
+    sky.SkyboxFt = "rbxassetid://" .. ids[3]
+    sky.SkyboxLf = "rbxassetid://" .. ids[4]
+    sky.SkyboxRt = "rbxassetid://" .. ids[5]
+    sky.SkyboxUp = "rbxassetid://" .. ids[6]
+end)
+
+local function removeSkybox()
+    local sky = Lighting:FindFirstChildOfClass("Sky")
+    if sky and sky.Name == "INDEX_SKY" then sky:Destroy() end
+end
+
+SkySection:Toggle({
+    Name = "enabled", Flag = "skyboxEnabled", Default = false,
+    Callback = function(v) skyboxEnabled = v; if v then applySkybox(currentSkyboxName) else removeSkybox() end end
+})
+SkySection:Dropdown({
+    Name = "preset", Flag = "skyboxPreset", Default = "galaxy", Items = skyboxKeys,
+    Callback = function(v) currentSkyboxName = v; if skyboxEnabled then applySkybox(v) end end
+})
+
+-- atmosphere
+local originalAtmosphere = nil
+local atmosphereEnabled  = false
+
+local function getOrCreateAtmosphere()
+    local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+    if not atm then atm = Instance.new("Atmosphere"); atm.Parent = Lighting end
+    return atm
+end
+
+local function cacheAtmosphere()
+    if originalAtmosphere then return end
+    local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+    if atm then
+        originalAtmosphere = { Density=atm.Density, Offset=atm.Offset, Color=atm.Color, Decay=atm.Decay, Glare=atm.Glare, Haze=atm.Haze }
+    else
+        originalAtmosphere = { Density=0.395, Offset=0, Color=Color3.fromRGB(199,199,199), Decay=Color3.fromRGB(90,75,67), Glare=0, Haze=0 }
+    end
+end
+
+AtmSection:Toggle({
+    Name = "custom atmosphere", Flag = "atmEnabled", Default = false,
+    Callback = function(v)
+        atmosphereEnabled = v
+        if v then
+            cacheAtmosphere()
+        else
+            local atm = Lighting:FindFirstChildOfClass("Atmosphere")
+            if atm and originalAtmosphere then
+                atm.Density = originalAtmosphere.Density
+                atm.Offset  = originalAtmosphere.Offset
+                atm.Glare   = originalAtmosphere.Glare
+                atm.Haze    = originalAtmosphere.Haze
+            end
+        end
+    end
+})
+AtmSection:Slider({ Name = "density", Flag = "atmDensity", Default = 40, Min = 0, Max = 100, Callback = function(v) if not atmosphereEnabled then return end; getOrCreateAtmosphere().Density = v/100 end })
+AtmSection:Slider({ Name = "offset",  Flag = "atmOffset",  Default = 0,  Min = 0, Max = 100, Callback = function(v) if not atmosphereEnabled then return end; getOrCreateAtmosphere().Offset  = v/100 end })
+AtmSection:Slider({ Name = "haze",    Flag = "atmHaze",    Default = 0,  Min = 0, Max = 100, Callback = function(v) if not atmosphereEnabled then return end; getOrCreateAtmosphere().Haze    = v/10  end })
+AtmSection:Slider({ Name = "glare",   Flag = "atmGlare",   Default = 0,  Min = 0, Max = 100, Callback = function(v) if not atmosphereEnabled then return end; getOrCreateAtmosphere().Glare   = v/100 end })
+
+-- ambient
+local defaultAmbient    = game:GetService("Lighting").Ambient
+local defaultBrightness = game:GetService("Lighting").Brightness
+
+AmbientSection:Toggle({
+    Name = "ambient", Flag = "ambientEnabled", Default = false,
+    Callback = function(v)
+        ambientSettings.enabled = v
+        local lighting = game:GetService("Lighting")
+        if not v then
+            lighting.Ambient    = defaultAmbient
+            lighting.Brightness = defaultBrightness
+        else
+            lighting.Ambient    = ambientSettings.color
+            lighting.Brightness = ambientSettings.brightness
+        end
+    end
+})
+AmbientSection:Label("color"):Colorpicker({
+    Flag = "ambientColor", Default = Color3.fromRGB(255, 255, 255),
+    Callback = function(c)
+        ambientSettings.color = c
+        if ambientSettings.enabled then game:GetService("Lighting").Ambient = c end
+    end
+})
+AmbientSection:Slider({
+    Name = "brightness", Flag = "ambientBrightness", Default = 50, Min = 0, Max = 200,
+    Callback = function(v)
+        ambientSettings.brightness = v / 50
+        if ambientSettings.enabled then game:GetService("Lighting").Brightness = ambientSettings.brightness end
+    end
+})
+
+-- viewmodel
+VMSection:Toggle({ Name = "enabled", Flag = "vmEnabled", Default = false, Callback = function(v) viewmodelSettings.enabled = v end })
+VMSection:Slider({ Name = "x", Flag = "vmX", Default = 0, Min = -3, Max = 3, Callback = function(v) viewmodelSettings.x = v end })
+VMSection:Slider({ Name = "y", Flag = "vmY", Default = 0, Min = -3, Max = 3, Callback = function(v) viewmodelSettings.y = v end })
+VMSection:Slider({ Name = "z", Flag = "vmZ", Default = 0, Min = -3, Max = 3, Callback = function(v) viewmodelSettings.z = v end })
+
+-- ─── Skin Changer ────────────────────────────────────────────────────────────
+
+if _G.INDEX_gunSkinConn   then _G.INDEX_gunSkinConn:Disconnect();   _G.INDEX_gunSkinConn   = nil end
+if _G.INDEX_knifeSkinConn then _G.INDEX_knifeSkinConn:Disconnect(); _G.INDEX_knifeSkinConn = nil end
+if _G.INDEX_camModelConn  then _G.INDEX_camModelConn:Disconnect();  _G.INDEX_camModelConn  = nil end
+
+if gameSupported then
+    local GunSkinSection   = WorldTab:Section({ Name = "gun skin",   Side = 2 })
+    local KnifeSkinSection = WorldTab:Section({ Name = "knife skin", Side = 2 })
+
+    local selectedGunSkin   = "none"
+    local selectedKnifeSkin = "none"
+
+    local gunSkinNamesReal = { "none" }
+    for _, v in ipairs(rs.Items.Skin:GetChildren()) do table.insert(gunSkinNamesReal, v.Name:lower()) end
+    table.sort(gunSkinNamesReal, function(a, b)
+        if a == "none" then return true end
+        if b == "none" then return false end
+        return a < b
+    end)
+
+    local GunSkinRealNames = {}
+    for _, v in ipairs(rs.Items.Skin:GetChildren()) do GunSkinRealNames[v.Name:lower()] = v.Name end
+
+    local knifeSkinNamesReal = { "none" }
+    for _, v in ipairs(rs.Items.Knife:GetChildren()) do table.insert(knifeSkinNamesReal, v.Name:lower()) end
+    table.sort(knifeSkinNamesReal, function(a, b)
+        if a == "none" then return true end
+        if b == "none" then return false end
+        return a < b
+    end)
+
+    local KnifeSkinRealNames = {}
+    for _, v in ipairs(rs.Items.Knife:GetChildren()) do KnifeSkinRealNames[v.Name:lower()] = v.Name end
+
+    local function getCameraModel() return workspace.CurrentCamera:FindFirstChild("CameraModel") end
+
+    local function getCurrentGun()
+        local cm = getCameraModel()
+        if not cm then return nil end
+        for _, v in ipairs(cm:GetChildren()) do
+            if rs.Weapons:FindFirstChild(v.Name) then return v end
+        end
+        return nil
+    end
+
+    local function getCurrentKnife()
+        local cm = getCameraModel()
+        if not cm then return nil end
+        for _, v in ipairs(cm:GetChildren()) do
+            if rs.Items.Knife:FindFirstChild(v.Name) then return v end
+        end
+        return nil
+    end
+
+    local function applyGunSkin(skinDisplayName)
+        if skinDisplayName == "none" or skinDisplayName == nil then return end
+        local realName = GunSkinRealNames[skinDisplayName] or skinDisplayName
+        local gun      = getCurrentGun()
+        if not gun then return end
+        local skinTex = rs.Items.Skin:FindFirstChild(realName)
+        if not skinTex then return end
+        for _, part in ipairs(gun:GetDescendants()) do
+            if part:IsA("MeshPart") then pcall(function() part.TextureID = skinTex.Texture end) end
+        end
+    end
+
+    local ANIM_BOWIE    = { Hold="rbxassetid://17156326547", Action="rbxassetid://17156290783", Equip="rbxassetid://17157619507", Inspect="rbxassetid://17223102735" }
+    local ANIM_KARAMBIT = { Hold="rbxassetid://17787592077", Action="rbxassetid://17788245247", Equip="rbxassetid://17787596397", Inspect="rbxassetid://17787586405" }
+    local ANIM_HATCHET  = { Hold="rbxassetid://111928394361277", Action="rbxassetid://116109040176624", Equip="rbxassetid://122865148996513", Inspect="rbxassetid://130711019196442" }
+
+    local knifeAnimSets = {
+        ["deceit"]="KARAMBIT",["karambit"]="KARAMBIT",["geometric"]="KARAMBIT",
+        ["mdrs"]="KARAMBIT",["manifesto"]="KARAMBIT",["qrimson karambit"]="KARAMBIT",
+        ["black frost"]="KARAMBIT",["hatchet"]="HATCHET",
+    }
+
+    local knifeOffsets = {}
+    local knifeNames = {
+        "aurora glacier","bayonet","black frost","bowie knife","carbon monsterized",
+        "cardboard bowie","crow bayonet","deceit","draconic","etherial","faded",
+        "faded sunset","geometric","gold ka-bar","hatchet","ka-bar","karambit",
+        "mdrs","manifesto","midnight operator bowie","nebula","oof bowie",
+        "pumpkin shade bowie","qrimson karambit","skeletal bowie","slate bayonet","smiley knife",
+    }
+    for _, n in ipairs(knifeNames) do
+        knifeOffsets[n] = { rotation = CFrame.Angles(0,0,0), position = CFrame.new(0,0,0) }
+    end
+
+    local function weldModel(model, target, offset)
+        offset = offset or CFrame.new()
+        local primaryPart = model:FindFirstChild("Handle", true) or model:FindFirstChildWhichIsA("BasePart")
+        if not primaryPart then return end
+        local primaryWorldCF = primaryPart.CFrame
+        for _, part in ipairs(model:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Anchored = false; part.CanCollide = false
+                if part == primaryPart then continue end
+                local weld = Instance.new("Weld")
+                weld.Part0 = target; weld.Part1 = part
+                weld.C0 = offset * primaryWorldCF:ToObjectSpace(part.CFrame)
+                weld.C1 = CFrame.new(); weld.Parent = part
+            end
+        end
+        local pw = Instance.new("Weld")
+        pw.Part0 = target; pw.Part1 = primaryPart
+        pw.C0 = offset; pw.C1 = CFrame.new(); pw.Parent = primaryPart
+        primaryPart.Anchored = false; primaryPart.CanCollide = false
+    end
+
+    local function applyKnifeAnims(knife, skinDisplayName)
+        local setName = knifeAnimSets[skinDisplayName]
+        local animSet = setName == "KARAMBIT" and ANIM_KARAMBIT or setName == "HATCHET" and ANIM_HATCHET or ANIM_BOWIE
+        for _, anim in ipairs(knife:GetDescendants()) do
+            if anim:IsA("Animation") then
+                local newId = animSet[anim.Name]
+                if newId then pcall(function() anim.AnimationId = newId end) end
+            end
+        end
+    end
+
+    local function applyKnifeSkin(skinDisplayName)
+        if skinDisplayName == "none" or skinDisplayName == nil then return end
+        local realName  = KnifeSkinRealNames[skinDisplayName] or skinDisplayName
+        local knife     = getCurrentKnife()
+        local skinModel = rs.Items.Knife:FindFirstChild(realName)
+        if not knife or not skinModel then return end
+        for _, v in ipairs(knife:GetDescendants()) do
+            if v:IsA("BasePart") then v.Transparency = 1 end
+        end
+        local old = knife:FindFirstChild("CustomSkin")
+        if old then old:Destroy() end
+        local clone = skinModel:Clone()
+        clone.Name = "CustomSkin"; clone.Parent = knife
+        local attachTo = knife:FindFirstChild("Handle", true) or knife:FindFirstChildWhichIsA("BasePart")
+        if attachTo then
+            local offset = knifeOffsets[skinDisplayName]
+            local cf     = offset and (offset.position * offset.rotation) or CFrame.new()
+            weldModel(clone, attachTo, cf)
+        end
+        applyKnifeAnims(knife, skinDisplayName)
+    end
+
+    local function hookCameraModel(cm)
+        if _G.INDEX_gunSkinConn   then _G.INDEX_gunSkinConn:Disconnect()   end
+        if _G.INDEX_knifeSkinConn then _G.INDEX_knifeSkinConn:Disconnect() end
+        _G.INDEX_gunSkinConn = cm.ChildAdded:Connect(function(child)
+            task.wait(0.1)
+            if rs.Weapons:FindFirstChild(child.Name) then applyGunSkin(selectedGunSkin)
+            elseif rs.Items.Knife:FindFirstChild(child.Name) then applyKnifeSkin(selectedKnifeSkin) end
+        end)
+    end
+
+    local cm = getCameraModel()
+    if cm then hookCameraModel(cm) end
+
+    _G.INDEX_camModelConn = workspace.CurrentCamera.ChildAdded:Connect(function(child)
+        if child.Name == "CameraModel" then
+            task.wait(0.2)
+            hookCameraModel(child)
+            applyGunSkin(selectedGunSkin)
+            applyKnifeSkin(selectedKnifeSkin)
+        end
+    end)
+
+    GunSkinSection:Dropdown({
+        Name = "select skin", Flag = "gunSkinSelect", Default = "none", Items = gunSkinNamesReal,
+        Callback = function(v) selectedGunSkin = v; applyGunSkin(v) end
+    })
+    KnifeSkinSection:Dropdown({
+        Name = "select skin", Flag = "knifeSkinSelect", Default = "none", Items = knifeSkinNamesReal,
+        Callback = function(v) selectedKnifeSkin = v; applyKnifeSkin(v) end
+    })
+else
+    local UnsupportedSection = WorldTab:Section({ Name = "skin changer", Side = 2 })
+    UnsupportedSection:Label("not supported in this game")
+end
+
+-- ─── Staff Detector ──────────────────────────────────────────────────────────
+
+local detectPlayer = WYNF_SECURE_CALL(function(player)
+    if not staffDetectorEnabled then return end
+    if detectedUsers[player.UserId] then return end
+    local role = watchedUsers[player.UserId]
+    if role then
+        detectedUsers[player.UserId] = true
+        Library:Notification(
+            string.format("%s detected: %s", role, player.Name),
+            string.format("user id: %d", player.UserId),
+            10
+        )
+    end
+end)
+
+-- ─── Config System ───────────────────────────────────────────────────────────
+
+local CONFIG_FOLDER = "index"
+local CONFIG_EXT    = ".json"
+
+if not isfolder(CONFIG_FOLDER) then makefolder(CONFIG_FOLDER) end
+
+local function getConfigPath(name) return CONFIG_FOLDER .. "/" .. name .. CONFIG_EXT end
+local function serializeColor(c)   return { r = c.R, g = c.G, b = c.B } end
+local function deserializeColor(t) return Color3.new(t.r, t.g, t.b) end
+
+local function buildConfig()
+    return {
+        aimenable        = settings.aimenable,
+        aimmode          = settings.aimmode,
+        aimkey           = tostring(settings.aimkey),
+        aimpart          = settings.aimpart,
+        aimteamcheck     = settings.aimteamcheck,
+        aimfov           = settings.aimfov,
+        aimsmoothing     = settings.aimsmoothing,
+        showfov          = settings.showfov,
+        fovcolor         = serializeColor(settings.fovcolor),
+        hitSoundEnabled  = soundSettings.hitSoundEnabled,
+        killSoundEnabled = soundSettings.killSoundEnabled,
+        currentHitSound  = soundSettings.currentHitSound,
+        currentKillSound = soundSettings.currentKillSound,
+        hitVolume        = soundSettings.hitVolume,
+        killVolume       = soundSettings.killVolume,
+    }
+end
+
+local function listConfigs()
+    local files = listfiles(CONFIG_FOLDER)
+    local names = {}
+    for _, path in ipairs(files) do
+        local name = path:match("([^/\\]+)" .. CONFIG_EXT .. "$")
+        if name then table.insert(names, name) end
+    end
+    table.sort(names)
+    return names
+end
+
+local function saveConfig(name)
+    if name == "" then return false end
+    writefile(getConfigPath(name), game:GetService("HttpService"):JSONEncode(buildConfig()))
+    return true
+end
+
+local function loadConfig(name)
+    local path = getConfigPath(name)
+    if not isfile(path) then return false end
+    local ok, result = pcall(function() return game:GetService("HttpService"):JSONDecode(readfile(path)) end)
+    if ok and result then
+        if result.aimenable        ~= nil then settings.aimenable        = result.aimenable        end
+        if result.aimmode          ~= nil then settings.aimmode          = result.aimmode          end
+        if result.aimpart          ~= nil then settings.aimpart          = result.aimpart          end
+        if result.aimteamcheck     ~= nil then settings.aimteamcheck     = result.aimteamcheck     end
+        if result.aimfov           ~= nil then settings.aimfov           = result.aimfov           end
+        if result.aimsmoothing     ~= nil then settings.aimsmoothing     = result.aimsmoothing     end
+        if result.showfov          ~= nil then settings.showfov          = result.showfov          end
+        if result.fovcolor         then settings.fovcolor = deserializeColor(result.fovcolor) end
+        if result.aimkey then
+            local resolved = resolve_key(result.aimkey)
+            if resolved then settings.aimkey = resolved end
+        end
+        if result.hitSoundEnabled  ~= nil then soundSettings.hitSoundEnabled  = result.hitSoundEnabled  end
+        if result.killSoundEnabled ~= nil then soundSettings.killSoundEnabled = result.killSoundEnabled end
+        if result.currentHitSound  ~= nil then soundSettings.currentHitSound  = result.currentHitSound  end
+        if result.currentKillSound ~= nil then soundSettings.currentKillSound = result.currentKillSound end
+        if result.hitVolume        ~= nil then soundSettings.hitVolume        = result.hitVolume        end
+        if result.killVolume       ~= nil then soundSettings.killVolume       = result.killVolume       end
+        return true
+    end
+    return false
+end
+
+local function deleteConfig(name)
+    local path = getConfigPath(name)
+    if isfile(path) then delfile(path); return true end
+    return false
+end
+
+-- ─── Settings Tab ────────────────────────────────────────────────────────────
+
+local MenuSection    = SettingsTab:Section({ Name = "menu",     Side = 1 })
+local ConfigSection  = SettingsTab:Section({ Name = "configs",  Side = 1 })
+local DisplaySection = SettingsTab:Section({ Name = "display",  Side = 2 })
+local UIColorSection = SettingsTab:Section({ Name = "ui color", Side = 2 })
+local HitLogSection  = SettingsTab:Section({ Name = "hit log",  Side = 2 })
+
+-- menu keybind
+if not isMobile then
+    MenuSection:Label("menu keybind"):Keybind({
+        Flag = "MenuKeybind", Default = Enum.KeyCode.RightShift, Mode = "Toggle",
+        Callback = function()
+            local flagData = Library.Flags["MenuKeybind"]
+            if flagData and flagData.Key then Library.MenuKeybind = flagData.Key end
+        end
+    })
+end
+
+-- device
+local currentDevice = "Computer"
+local deviceMap = { ["mobile"]="Mobile", ["computer"]="Computer", ["console"]="Console" }
+
+if DeviceEvent then
+    MenuSection:Dropdown({
+        Name = "device mode", Flag = "deviceMode", Default = "computer",
+        Items = { "mobile", "computer", "console" },
+        Callback = function(v)
+            currentDevice = deviceMap[v]
+            pcall(function() DeviceEvent:FireServer(currentDevice) end)
+        end
+    })
+    localplayer.CharacterAdded:Connect(function()
+        task.wait(0.5)
+        pcall(function() DeviceEvent:FireServer(currentDevice) end)
+    end)
+else
+    MenuSection:Label("device: not supported in this game")
+end
+
+-- display
+DisplaySection:Toggle({ Name = "watermark",      Flag = "WatermarkVisible",   Default = true,  Callback = function(v) Watermark:SetVisibility(v)   end })
+DisplaySection:Toggle({ Name = "keybind list",   Flag = "KeybindListVisible", Default = false, Callback = function(v) KeybindList:SetVisibility(v) end })
+DisplaySection:Toggle({
+    Name = "staff detector", Flag = "staffDetector", Default = true,
+    Callback = function(v)
+        staffDetectorEnabled = v
+        if v then
+            table.clear(detectedUsers)
+            for _, player in ipairs(players:GetPlayers()) do detectPlayer(player) end
+        end
+    end
+})
+DisplaySection:Button():Add("unload", function()
+    unloading = true
+    ESP:Unload()
+    if _G.INDEX_gunSkinConn   then _G.INDEX_gunSkinConn:Disconnect();   _G.INDEX_gunSkinConn   = nil end
+    if _G.INDEX_knifeSkinConn then _G.INDEX_knifeSkinConn:Disconnect(); _G.INDEX_knifeSkinConn = nil end
+    if _G.INDEX_camModelConn  then _G.INDEX_camModelConn:Disconnect();  _G.INDEX_camModelConn  = nil end
+    removeSkybox()
+    if esp_conn then esp_conn:Disconnect(); esp_conn = nil end
+    if fov_circle then fov_circle.Visible = false; pcall(function() fov_circle:Remove() end); fov_circle = nil end
+    for sound in pairs(activeSounds) do pcall(function() sound:Stop(); sound:Destroy() end) end
+    table.clear(activeSounds)
+    for _, conn in ipairs(characterAddedConnections) do pcall(function() conn:Disconnect() end) end
+    table.clear(characterAddedConnections)
+    for _, conn in pairs(mutedConnections) do pcall(function() conn:Disconnect() end) end
+    table.clear(mutedConnections)
+    if descendantConnection then descendantConnection:Disconnect(); descendantConnection = nil end
+    if hitmarkerWatcher then hitmarkerWatcher:Disconnect(); hitmarkerWatcher = nil end
+    local mobileGui = localplayer.PlayerGui:FindFirstChild("IndexMobileToggle")
+    if mobileGui then mobileGui:Destroy() end
+    Library:Unload()
+end)
+
+-- ui color
+UIColorSection:Label("accent color"):Colorpicker({
+    Flag = "AccentColor", Default = Library.Theme.Accent,
+    Callback = function(c) Library:ChangeTheme("Accent", c) end
+})
+
+-- hit log
+HitLogSection:Toggle({ Name = "hit notification", Flag = "hitNotify",         Default = true, Callback = function(v) hitSettings.notifyEnabled  = v end })
+HitLogSection:Slider({ Name = "notify duration",  Flag = "hitNotifyDuration", Min = 1, Max = 10, Default = 3, Callback = function(v) hitSettings.notifyDuration = v end })
+
+-- configs
+local configNameInput = ""
+local selectedConfig  = ""
+
+local cfgDropdown = ConfigSection:Dropdown({
+    Name = "select", Flag = "configSelect", Default = nil,
+    Items = listConfigs(),
+    Callback = function(v) selectedConfig = v or "" end
+})
+
+local function refreshDropdown()
+    cfgDropdown:Refresh(listConfigs())
+    selectedConfig = ""
+end
+
+ConfigSection:Textbox({
+    Name = "config name", Flag = "configNameInput", Default = "", Placeholder = "name...",
+    Callback = function(v) configNameInput = v end
+})
+
+ConfigSection:Button():Add("save", function()
+    local name = (configNameInput ~= "" and configNameInput or "default"):gsub("[/\\%.%s]", "_")
+    if saveConfig(name) then
+        refreshDropdown()
+        Library:Notification("saved", name, 4)
+    end
+end)
+
+ConfigSection:Button():Add("load", function()
+    if selectedConfig == "" then Library:Notification("error", "select a config first", 3); return end
+    if loadConfig(selectedConfig) then
+        Library:Notification("loaded", selectedConfig, 4)
+    else
+        Library:Notification("error", "failed to load config", 3)
+    end
+end)
+
+ConfigSection:Button():Add("delete", function()
+    if selectedConfig == "" then Library:Notification("error", "select a config first", 3); return end
+    local name = selectedConfig
+    if deleteConfig(name) then
+        refreshDropdown()
+        Library:Notification("deleted", name, 4)
+    else
+        Library:Notification("error", "config not found", 3)
+    end
+end)
+
+ConfigSection:Button():Add("refresh", function()
+    refreshDropdown()
+    Library:Notification("refreshed", #listConfigs() .. " config(s) found", 3)
+end)
+
+-- ─── Aimbot Logic ────────────────────────────────────────────────────────────
+
+local get_center = WYNF_NO_VIRTUALIZE(function()
+    local vp = workspace.CurrentCamera.ViewportSize
+    return Vector2.new(vp.X / 2, vp.Y / 2)
+end)
+
+local get_best_target = WYNF_SECURE_CALL(function(cam)
+    local center    = get_center()
+    local best_dist = math.huge
+    local best_part = nil
+    local best_player = nil
+
+    for _, player in pairs(players:GetPlayers()) do
+        if player == localplayer then continue end
+        if settings.aimteamcheck and player.TeamColor == localplayer.TeamColor then continue end
+        local char = player.Character
+        if not char then continue end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then continue end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        local _, hrp_vis = cam:WorldToViewportPoint(hrp.Position)
+        if not hrp_vis then continue end
+        local part
+        for _, child in pairs(char:GetChildren()) do
+            if child.Name:lower() == settings.aimpart:lower() then part = child; break end
+        end
+        part = part or hrp
+        local s, on = cam:WorldToViewportPoint(part.Position)
+        if not on then continue end
+        local dist = (Vector2.new(s.X, s.Y) - center).Magnitude
+        if dist < settings.aimfov and dist < best_dist then
+            best_dist   = dist
+            best_part   = part
+            best_player = player
+        end
+    end
+
+    return best_part, best_player
+end)
+
+local should_aim = WYNF_NO_VIRTUALIZE(function()
+    if not settings.aimenable then return false end
+    if settings.aimmode == "always" then return true end
+    if settings.aimmode == "hold"   then return is_key_down() end
+    if settings.aimmode == "toggle" then return aim_toggled end
+    return false
+end)
+
+local move_camera_to = WYNF_SECURE_CALL(function(cam, part)
+    local s      = cam:WorldToViewportPoint(part.Position)
+    local center = get_center()
+    local delta  = Vector2.new(s.X, s.Y) - center
+    local vp     = cam.ViewportSize
+    local ppr    = vp.Y / (2 * math.tan(math.rad(cam.FieldOfView) / 2))
+    local factor = 1 - settings.aimsmoothing
+    local yaw    = (-delta.X / ppr) * factor
+    local pitch  = (-delta.Y / ppr) * factor
+    local cf     = cam.CFrame
+    local rot    = cf * CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0)
+    cam.CFrame   = CFrame.new(cf.Position) * (rot - rot.Position)
+end)
+
+table.insert(characterAddedConnections,
+    userinput.InputBegan:Connect(function(input, gpe)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local cam = workspace.CurrentCamera
+            local _, targetPlayer = get_best_target(cam)
+            if targetPlayer then
+                recentTargets[targetPlayer] = tick() + FIRE_LINGER_SECONDS
+            end
+        end
+    end)
+)
+
+userinput.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if settings.aimenable and settings.aimmode == "toggle" then
+        if input_matches_aimkey(input) then aim_toggled = not aim_toggled end
+    end
+end)
+
+esp_conn = runservice.RenderStepped:Connect(function()
+    if unloading then return end
+    local cam    = workspace.CurrentCamera
+    local center = get_center()
+
+    if fov_circle then
+        fov_circle.Position = center
+        fov_circle.Radius   = settings.aimfov
+        fov_circle.Color    = settings.fovcolor
+        fov_circle.Visible  = settings.showfov and settings.aimenable
+    end
+
+    if should_aim() then
+        local target = get_best_target(cam)
+        if target then move_camera_to(cam, target) end
+    end
+end)
+
+-- ─── Hitmarker + Hit Indicator ───────────────────────────────────────────────
+
+FlashHitmarker = function(hitPlayer, isKill, damage)
+    local char = hitPlayer and hitPlayer.Character
+    if not char then return end
+
+    if hitmarkerSettings.enabled then
+        task.spawn(function()
+            local col = isKill and hitmarkerSettings.killColor or hitmarkerSettings.color
+            local hl  = Instance.new("Highlight")
+            hl.FillColor           = col
+            hl.OutlineColor        = col
+            hl.FillTransparency    = 0.2
+            hl.OutlineTransparency = 0
+            hl.DepthMode           = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Adornee             = char
+            hl.Parent              = workspace
+            local dur   = hitmarkerSettings.duration
+            local start = tick()
+            local conn
+            conn = runservice.RenderStepped:Connect(function()
+                local t = math.clamp((tick() - start) / dur, 0, 1)
+                hl.FillTransparency    = 0.2 + 0.8 * t
+                hl.OutlineTransparency = t
+                if t >= 1 then hl:Destroy(); conn:Disconnect() end
+            end)
+        end)
+    end
+
+    if hitIndicatorSettings.enabled then
+        task.spawn(function()
+            local head = char:FindFirstChild("Head")
+            if not head then return end
+            local dmgText = damage and tostring(damage) or (isKill and "kill" or "hit")
+            local col = isKill and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(255, 50, 50)
+            local bb = Instance.new("BillboardGui")
+            bb.AlwaysOnTop = true
+            bb.Size        = UDim2.new(0, 60, 0, 30)
+            bb.StudsOffset = Vector3.new(math.random(-1, 1), 3, 0)
+            bb.Parent      = head
+            local lbl = Instance.new("TextLabel", bb)
+            lbl.Size                   = UDim2.new(1, 0, 1, 0)
+            lbl.BackgroundTransparency = 1
+            lbl.Text                   = dmgText
+            lbl.TextColor3             = col
+            lbl.TextStrokeColor3       = Color3.new(0, 0, 0)
+            lbl.TextStrokeTransparency = 0
+            lbl.Font                   = Enum.Font.GothamBold
+            lbl.TextSize               = 18
+            local rise = 0
+            local conn
+            conn = runservice.RenderStepped:Connect(function(dt)
+                rise = rise + dt * 2.5
+                bb.StudsOffset = Vector3.new(bb.StudsOffset.X, 3 + rise, 0)
+                local t = math.clamp(rise / 1.5, 0, 1)
+                lbl.TextTransparency       = t
+                lbl.TextStrokeTransparency = t
+                if t >= 1 then bb:Destroy(); conn:Disconnect() end
+            end)
+        end)
+    end
+end
+
+-- ─── Viewmodel Offset ────────────────────────────────────────────────────────
+
+local vmCurrentCF = CFrame.new(0, 0, 0)
+
+runservice:BindToRenderStep("VMOffset", Enum.RenderPriority.Camera.Value + 1, function(dt)
+    if not viewmodelSettings.enabled then return end
+    local cm = workspace.CurrentCamera:FindFirstChild("CameraModel")
+    if not cm then return end
+    local anim = cm:FindFirstChild("Anim")
+    if not anim then return end
+    local baseMotor = anim:FindFirstChild("Base")
+    if not baseMotor or not baseMotor:IsA("Motor6D") then return end
+    local targetCF = CFrame.new(viewmodelSettings.x, viewmodelSettings.y, viewmodelSettings.z)
+    vmCurrentCF = vmCurrentCF:Lerp(targetCF, math.min(dt * 15, 1))
+    baseMotor.C0 = baseMotor.C0 * vmCurrentCF
+end)
+
+-- ─── Silent Aim ──────────────────────────────────────────────────────────────
+
+local SA_Camera = workspace.CurrentCamera
+local VIM       = game:GetService("VirtualInputManager")
+
+local function SA_GetClosestPlayer()
+    local Closest, ClosestDist = nil, silentSettings.fov
+    for _, Player in next, players:GetPlayers() do
+        if Player == localplayer then continue end
+        if silentSettings.teamcheck and Player.Team == localplayer.Team then continue end
+        local char = Player.Character
+        if not char then continue end
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then continue end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        local sp, onScreen = SA_Camera:WorldToScreenPoint(hrp.Position)
+        if not onScreen then continue end
+        local dist = (userinput:GetMouseLocation() - Vector2.new(sp.X, sp.Y)).Magnitude
+        if dist < ClosestDist then
+            ClosestDist = dist
+            local targetChild = char:FindFirstChild(silentSettings.targetpart)
+            if not targetChild then
+                for _, c in ipairs(char:GetChildren()) do
+                    if c.Name:lower() == silentSettings.targetpart then targetChild = c; break end
+                end
+            end
+            Closest = targetChild or hrp
+        end
+    end
+    return Closest
+end
+
+local SA_CachedTarget = nil
+local SA_CachedHRPPos = nil
+local SA_LastHB       = 0
+local SA_LastShot     = 0
+local SA_VisParams    = RaycastParams.new()
+SA_VisParams.FilterType = Enum.RaycastFilterType.Exclude
+
+local function SA_IsVisible(hrp, target)
+    local char = localplayer.Character
+    SA_VisParams.FilterDescendantsInstances = { char }
+    local dir = target.Position - hrp.Position
+    if dir.Magnitude == 0 then return false end
+    local result = workspace:Raycast(hrp.Position, dir.Unit * dir.Magnitude, SA_VisParams)
+    return not result or (result.Instance and result.Instance:IsDescendantOf(target.Parent))
+end
+
+runservice.Heartbeat:Connect(function()
+    local now = tick()
+    if now - SA_LastHB < 0.033 then return end
+    SA_LastHB = now
+
+    local char = localplayer.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    SA_CachedHRPPos = hrp and hrp.Position or nil
+
+    if silentSettings.enabled or autoShootSettings.enabled then
+        SA_CachedTarget = SA_GetClosestPlayer()
+    else
+        SA_CachedTarget = nil
+    end
+
+    if autoShootSettings.enabled and SA_CachedTarget and hrp then
+        local canShoot = true
+        if autoShootSettings.vischeck then canShoot = SA_IsVisible(hrp, SA_CachedTarget) end
+        if canShoot and (now - SA_LastShot) >= autoShootSettings.delay then
+            SA_LastShot = now
+            pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, true,  game, 1) end)
+            task.delay(0.05, function()
+                pcall(function() VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1) end)
+            end)
+        end
+    end
+end)
+
+-- ─── Weapon Mods ─────────────────────────────────────────────────────────────
+
+local WM_BaseRates = {}
+
+local function WM_Search()
+    local found = {}
+    for _, v in getgc(true) do
+        if type(v) == "table" and rawget(v, "FireRate") ~= nil and rawget(v, "VRecoil") ~= nil then
+            found[v] = true
+        end
+    end
+    WM_Clients = found
+end
+
+task.spawn(function()
+    for _ = 1, 20 do
+        WM_Search()
+        if next(WM_Clients) then break end
+        task.wait(1)
+    end
+    while true do task.wait(5); WM_Search() end
+end)
+
+runservice.Heartbeat:Connect(function()
+    if not next(WM_Clients) then return end
+    for v in pairs(WM_Clients) do
+        if weaponSettings.noRecoil then
+            pcall(function()
+                v.VRecoil = 0; v.HRecoil = 0; v.RecoilPower = 0; v.RecoilPunch = 0
+                v.VPunchBase = 0; v.HPunchBase = 0; v.DPunchBase = 0; v.RecoilPowerStepAmount = 0
+            end)
+        end
+        if weaponSettings.noSpread then
+            pcall(function()
+                v.MaxSpread = 0; v.MinSpread = 0; v.AimInaccuracyStepAmount = 0; v.MaxSway = 0
+            end)
+        end
+        if weaponSettings.fireRate then
+            pcall(function()
+                local rate = tonumber(v.FireRate)
+                if not rate then return end
+                if not WM_BaseRates[v] then WM_BaseRates[v] = rate end
+                v.FireRate = WM_BaseRates[v] * math.max(weaponSettings.fireRateMult, 1)
+                v.FireMode = "Auto"
+            end)
+        else
+            if WM_BaseRates[v] then
+                pcall(function() v.FireRate = WM_BaseRates[v] end)
+                WM_BaseRates[v] = nil
+            end
+        end
+    end
+end)
+
+-- ─── Silent Aim Hook ─────────────────────────────────────────────────────────
+
+local SA_OldNamecall
+SA_OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(...)
+    local method = getnamecallmethod()
+    local args   = {...}
+    if not checkcaller() and method == "Raycast"
+    and typeof(args[2]) == "Vector3"
+    and typeof(args[3]) == "Vector3"
+    and SA_CachedHRPPos
+    and (args[2] - SA_CachedHRPPos).Magnitude < 15
+    and silentSettings.enabled
+    and SA_CachedTarget then
+        args[3] = (SA_CachedTarget.Position - args[2]).Unit * 1000
+        return SA_OldNamecall(unpack(args))
+    end
+    return SA_OldNamecall(...)
+end))
+
+-- ─── Menu Keybind ────────────────────────────────────────────────────────────
+
+SetupHitDetection()
+
+for _, player in ipairs(players:GetPlayers()) do detectPlayer(player) end
+players.PlayerAdded:Connect(detectPlayer)
+
+if not isMobile then
+    Library.MenuKeybind = tostring(Enum.KeyCode.RightShift)
+end
+
+Library:Notification(
+    "index.lol",
+    "loaded in " .. string.format("%.4f", os.clock() - LoadingTick) .. "s",
+    5
+)
