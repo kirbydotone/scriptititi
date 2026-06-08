@@ -93,10 +93,10 @@ local hitSettings = {
 }
 
 local weaponSettings = {
-    noRecoil     = false,
-    noSpread     = false,
-    fireRate     = false,
-    fireRateMult = 2,
+    noRecoil      = false,
+    noSpread      = false,
+    fireRate      = false,
+    fireRateMult  = 2,
 }
 
 local hitmarkerSettings = {
@@ -112,13 +112,19 @@ local hitIndicatorSettings = {
 
 local movSettings = {
     cfrmSpeed    = false,
-    cfrmSpeedVal = 50,
+    cfrmSpeedVal = 27,
     velSpeed     = false,
-    velSpeedVal  = 50,
+    velSpeedVal  = 30,
     flyEnabled   = false,
-    flySpeed     = 1,
+    flySpeed     = 5,
     noclip       = false,
     bhop         = false,
+}
+
+local manipSettings = {
+    enabled  = false,
+    fov      = 200,   -- how wide the snap angle is (degrees)
+    strength = 1,     -- 0-1, how strongly the weapon snaps toward enemy
 }
 
 local autoShootSettings = {
@@ -424,12 +430,11 @@ end)
 
 local Window = Library:Window({
     Name = "index.lol",
-    Logo = "120474185165700"
 })
 
 local Watermark   = Library:Watermark("index.lol")
 local KeybindList = Library:KeybindList()
-KeybindList:SetVisibility(false)
+KeybindList:SetVisibility(true)
 
 -- ─── Pages ───────────────────────────────────────────────────────────────────
 
@@ -564,6 +569,7 @@ local espInstance = ESP:Load({
             VisibleCheck        = false,
         },
     },
+    TeamCheck   = true,
     Keybind     = { Enabled = false },
     Directories = {},
 })
@@ -587,11 +593,16 @@ ESPSection:Toggle({ Name = "flags",         Flag = "espFlags",    Default = true
 ESPSection:Toggle({ Name = "skeleton",      Flag = "espSkeleton", Default = false, Callback = function(v) espCfg.Skeleton.Enabled      = v end })
 ESPSection:Toggle({ Name = "box fill",      Flag = "espBoxFill",  Default = true,  Callback = function(v) espCfg.BoxFill.Enabled       = v end })
 ESPSection:Toggle({ Name = "team indicator",Flag = "espTeamInd",  Default = true,  Callback = function(v) espCfg.TeamIndicator.Enabled = v end })
+ESPSection:Toggle({ Name = "team check",    Flag = "espTeamCheck", Default = true,  Callback = function(v) espCfg.TeamCheck = v end })
 
 ESPSection:Dropdown({
     Name = "box type", Flag = "espBoxType", Default = "Normal",
     Items = { "Normal", "Corner", "Circle" },
     Callback = function(v) espCfg.BoxType = v end
+})
+ESPSection:Slider({
+    Name = "max distance", Flag = "espMaxDist", Default = 1000, Min = 50, Max = 2000,
+    Callback = function(v) espCfg.MaxDistance = v end
 })
 
 ChamSection:Toggle({ Name = "chams", Flag = "espChams", Default = true, Callback = function(v) espCfg.Chams.Enabled = v end })
@@ -663,15 +674,18 @@ BoxSection:Toggle({ Name = "animate gradient", Flag = "gradAnim", Default = true
 
 local AimSection     = AimbotTab:Section({ Name = "aimbot",      Side = 1 })
 local SilentSection  = AimbotTab:Section({ Name = "silent aim",  Side = 2 })
-local WeaponSection  = AimbotTab:Section({ Name = "weapon mods", Side = 1 })
-local WeaponSection2 = AimbotTab:Section({ Name = "hitmarker",   Side = 2 })
-local AutoSection    = AimbotTab:Section({ Name = "triggerbot",  Side = 1 })
+local WeaponSection  = AimbotTab:Section({ Name = "weapon mods",  Side = 1 })
+local WeaponSection2 = AimbotTab:Section({ Name = "hitmarker",    Side = 2 })
+local AutoSection    = AimbotTab:Section({ Name = "triggerbot",   Side = 1 })
+local ManipSection   = AimbotTab:Section({ Name = "manipulation", Side = 2 })
 
 -- aimbot
-AimSection:Toggle({
+local aimToggle = AimSection:Toggle({
     Name = "enabled", Flag = "aimenable", Default = settings.aimenable,
     Callback = function(v) settings.aimenable = v; if not v then aim_toggled = false end end
 })
+aimToggle:Keybind({ Flag = "aimEnableBind", Default = "None", Mode = "Toggle",
+    Callback = function(v) aimToggle:Set(v) end })
 AimSection:Dropdown({
     Name = "mode", Flag = "aimmode", Default = "hold",
     Items = { "hold", "toggle", "always" },
@@ -697,6 +711,11 @@ AimSection:Toggle({
     Name = "team check", Flag = "aimteamcheck", Default = settings.aimteamcheck,
     Callback = function(v) settings.aimteamcheck = v end
 })
+AimSection:Dropdown({
+    Name = "target priority", Flag = "aimPriority", Default = "closest to crosshair",
+    Items = { "closest to crosshair", "lowest health", "closest distance" },
+    Callback = function(v) settings.priority = v end
+})
 AimSection:Slider({ Name = "fov",       Flag = "aimfov",       Default = settings.aimfov,                         Min = 10, Max = 800, Callback = function(v) settings.aimfov       = v       end })
 AimSection:Slider({ Name = "smoothing", Flag = "aimsmoothing", Default = math.floor(settings.aimsmoothing * 100), Min = 0,  Max = 95,  Callback = function(v) settings.aimsmoothing = v / 100 end })
 AimSection:Toggle({ Name = "show fov circle", Flag = "showfov", Default = settings.showfov, Callback = function(v) settings.showfov = v end })
@@ -706,7 +725,9 @@ AimSection:Label("fov color"):Colorpicker({
 })
 
 -- silent aim
-SilentSection:Toggle({ Name = "enabled",       Flag = "silentEnabled", Default = false, Callback = function(v) silentSettings.enabled   = v end })
+local silentToggle = SilentSection:Toggle({ Name = "enabled", Flag = "silentEnabled", Default = false, Callback = function(v) silentSettings.enabled = v end })
+silentToggle:Keybind({ Flag = "silentBind", Default = "None", Mode = "Toggle",
+    Callback = function(v) silentToggle:Set(v) end })
 SilentSection:Toggle({ Name = "team check",    Flag = "silentTeam",    Default = true,  Callback = function(v) silentSettings.teamcheck  = v end })
 SilentSection:Toggle({ Name = "visible check", Flag = "silentVis",     Default = false, Callback = function(v) silentSettings.vischeck   = v end })
 SilentSection:Dropdown({
@@ -717,10 +738,14 @@ SilentSection:Dropdown({
 SilentSection:Slider({ Name = "fov", Flag = "silentFov", Default = 130, Min = 10, Max = 800, Callback = function(v) silentSettings.fov = v end })
 
 -- weapon mods
-WeaponSection:Toggle({ Name = "no recoil",  Flag = "noRecoil", Default = false, Callback = function(v) weaponSettings.noRecoil  = v end })
-WeaponSection:Toggle({ Name = "no spread",  Flag = "noSpread", Default = false, Callback = function(v) weaponSettings.noSpread  = v end })
-WeaponSection:Toggle({ Name = "rapid fire", Flag = "fireRate", Default = false, Callback = function(v) weaponSettings.fireRate  = v end })
+local noRecoilToggle = WeaponSection:Toggle({ Name = "no recoil",  Flag = "noRecoil", Default = false, Callback = function(v) weaponSettings.noRecoil = v end })
+noRecoilToggle:Keybind({ Flag = "noRecoilBind", Default = "None", Mode = "Toggle", Callback = function(v) noRecoilToggle:Set(v) end })
+local noSpreadToggle = WeaponSection:Toggle({ Name = "no spread",  Flag = "noSpread", Default = false, Callback = function(v) weaponSettings.noSpread = v end })
+noSpreadToggle:Keybind({ Flag = "noSpreadBind", Default = "None", Mode = "Toggle", Callback = function(v) noSpreadToggle:Set(v) end })
+local rapidFireToggle = WeaponSection:Toggle({ Name = "rapid fire", Flag = "fireRate", Default = false, Callback = function(v) weaponSettings.fireRate = v end })
+rapidFireToggle:Keybind({ Flag = "rapidFireBind", Default = "None", Mode = "Toggle", Callback = function(v) rapidFireToggle:Set(v) end })
 WeaponSection:Slider({ Name = "firerate multiplier", Flag = "fireRateMult", Default = 2, Min = 1, Max = 10, Callback = function(v) weaponSettings.fireRateMult = v end })
+
 
 -- hitmarker
 WeaponSection2:Toggle({ Name = "hitmarker",     Flag = "hitmarkerEnabled", Default = false, Callback = function(v) hitmarkerSettings.enabled = v end })
@@ -736,7 +761,9 @@ WeaponSection2:Label("kill color"):Colorpicker({
 WeaponSection2:Slider({ Name = "duration", Flag = "hitmarkerDuration", Default = 50, Min = 10, Max = 200, Callback = function(v) hitmarkerSettings.duration = v / 100 end })
 
 -- triggerbot
-AutoSection:Toggle({ Name = "enabled",       Flag = "autoShootEnabled", Default = false, Callback = function(v) autoShootSettings.enabled  = v end })
+local autoToggle = AutoSection:Toggle({ Name = "enabled", Flag = "autoShootEnabled", Default = false, Callback = function(v) autoShootSettings.enabled = v end })
+autoToggle:Keybind({ Flag = "autoBind", Default = "None", Mode = "Toggle",
+    Callback = function(v) autoToggle:Set(v) end })
 AutoSection:Toggle({ Name = "visible check", Flag = "autoShootVis",     Default = true,  Callback = function(v) autoShootSettings.vischeck  = v end })
 AutoSection:Slider({ Name = "shoot delay",   Flag = "autoShootDelay",   Default = 10, Min = 1, Max = 100, Callback = function(v) autoShootSettings.delay = v / 100 end })
 
@@ -1125,6 +1152,7 @@ local function buildConfig()
     return {
         -- aimbot
         aimenable        = settings.aimenable,
+        aimPriority      = settings.priority,
         aimmode          = settings.aimmode,
         aimkey           = tostring(settings.aimkey),
         aimpart          = settings.aimpart,
@@ -1135,6 +1163,7 @@ local function buildConfig()
         fovcolor         = serializeColor(settings.fovcolor),
         -- weapon mods
         noRecoil         = weaponSettings.noRecoil,
+
         noSpread         = weaponSettings.noSpread,
         fireRate         = weaponSettings.fireRate,
         fireRateMult     = weaponSettings.fireRateMult,
@@ -1166,6 +1195,8 @@ local function buildConfig()
         espTeamInd       = espCfg.TeamIndicator.Enabled,
         espChams         = espCfg.Chams.Enabled,
         espChamType      = espCfg.Chams.Type,
+        espMaxDist       = espCfg.MaxDistance,
+        espTeamCheck     = espCfg.TeamCheck,
         -- hitmarker details
         hitmarkerColor    = serializeColor(hitmarkerSettings.color),
         hitmarkerKillColor= serializeColor(hitmarkerSettings.killColor),
@@ -1203,6 +1234,10 @@ local function buildConfig()
         -- misc movement
         jumpPower        = Library.Flags["jumpPower"],
         walkSpeed        = Library.Flags["walkSpeed"],
+        -- manipulation
+        manipEnabled     = manipSettings.enabled,
+        manipFov         = manipSettings.fov,
+        manipStrength    = manipSettings.strength,
         -- movement
         cfrmSpeed        = movSettings.cfrmSpeed,
         cfrmSpeedVal     = movSettings.cfrmSpeedVal,
@@ -1256,7 +1291,8 @@ local function loadConfig(name)
     end
 
     -- aimbot
-    if r.aimenable        ~= nil then settings.aimenable    = r.aimenable;    applyFlag("aimenable",    r.aimenable)    end
+    if r.aimenable    ~= nil then settings.aimenable = r.aimenable; applyFlag("aimenable",    r.aimenable) end
+    if r.aimPriority  ~= nil then settings.priority  = r.aimPriority; applyFlag("aimPriority", r.aimPriority) end
     if r.aimmode          ~= nil then settings.aimmode      = r.aimmode;      applyFlag("aimmode",      r.aimmode)      end
     if r.aimpart          ~= nil then settings.aimpart      = r.aimpart;      applyFlag("aimpart",      r.aimpart)      end
     if r.aimteamcheck     ~= nil then settings.aimteamcheck = r.aimteamcheck; applyFlag("aimteamcheck", r.aimteamcheck) end
@@ -1273,7 +1309,8 @@ local function loadConfig(name)
     if r.noRecoil     ~= nil then weaponSettings.noRecoil     = r.noRecoil;     applyFlag("noRecoil",     r.noRecoil)     end
     if r.noSpread     ~= nil then weaponSettings.noSpread     = r.noSpread;     applyFlag("noSpread",     r.noSpread)     end
     if r.fireRate     ~= nil then weaponSettings.fireRate     = r.fireRate;     applyFlag("fireRate",     r.fireRate)     end
-    if r.fireRateMult ~= nil then weaponSettings.fireRateMult = r.fireRateMult; applyFlag("fireRateMult", r.fireRateMult) end
+    if r.fireRateMult  ~= nil then weaponSettings.fireRateMult  = r.fireRateMult;  applyFlag("fireRateMult",  r.fireRateMult)  end
+
 
     -- hitmarker / indicator
     if r.hitmarkerEnabled ~= nil then hitmarkerSettings.enabled  = r.hitmarkerEnabled;  applyFlag("hitmarkerEnabled", r.hitmarkerEnabled)  end
@@ -1304,7 +1341,9 @@ local function loadConfig(name)
     if r.espBoxFill  ~= nil then espCfg.BoxFill.Enabled       = r.espBoxFill;  applyFlag("espBoxFill",  r.espBoxFill)  end
     if r.espTeamInd  ~= nil then espCfg.TeamIndicator.Enabled = r.espTeamInd;  applyFlag("espTeamInd",  r.espTeamInd)  end
     if r.espChams    ~= nil then espCfg.Chams.Enabled         = r.espChams;    applyFlag("espChams",    r.espChams)    end
-    if r.espChamType ~= nil then espCfg.Chams.Type            = r.espChamType; applyFlag("espChamType", r.espChamType) end
+    if r.espChamType  ~= nil then espCfg.Chams.Type     = r.espChamType;  applyFlag("espChamType",  r.espChamType)  end
+    if r.espMaxDist   ~= nil then espCfg.MaxDistance = r.espMaxDist;   applyFlag("espMaxDist",   r.espMaxDist)   end
+    if r.espTeamCheck ~= nil then espCfg.TeamCheck   = r.espTeamCheck; applyFlag("espTeamCheck", r.espTeamCheck) end
 
     -- hitmarker details
     if r.hitmarkerColor     ~= nil then hitmarkerSettings.color     = deserializeColor(r.hitmarkerColor)     applyFlag("hitmarkerColor",     hitmarkerSettings.color)     end
@@ -1369,7 +1408,6 @@ local function loadConfig(name)
     if r.jumpPower ~= nil then applyFlag("jumpPower", r.jumpPower) end
     if r.walkSpeed ~= nil then applyFlag("walkSpeed", r.walkSpeed) end
     -- silent toggles
-
     -- movement
     if r.cfrmSpeed    ~= nil then movSettings.cfrmSpeed    = r.cfrmSpeed;    applyFlag("cfrmSpeed",    r.cfrmSpeed)    end
     if r.cfrmSpeedVal ~= nil then movSettings.cfrmSpeedVal = r.cfrmSpeedVal; applyFlag("cfrmSpeedVal", r.cfrmSpeedVal) end
@@ -1447,7 +1485,7 @@ end
 
 -- display
 DisplaySection:Toggle({ Name = "watermark",      Flag = "WatermarkVisible",   Default = true,  Callback = function(v) Watermark:SetVisibility(v)   end })
-DisplaySection:Toggle({ Name = "keybind list",   Flag = "KeybindListVisible", Default = false, Callback = function(v) KeybindList:SetVisibility(v) end })
+DisplaySection:Toggle({ Name = "keybind list",   Flag = "KeybindListVisible", Default = true,  Callback = function(v) KeybindList:SetVisibility(v) end })
 DisplaySection:Toggle({
     Name = "staff detector", Flag = "staffDetector", Default = true,
     Callback = function(v)
@@ -1570,7 +1608,7 @@ local function startCFrmSpeed()
         if not hrp or not hum then return end
         local dir = hum.MoveDirection
         if dir.Magnitude > 0 then
-            hrp.CFrame = hrp.CFrame + dir * movSettings.cfrmSpeedVal * 0.05
+            hrp.CFrame = hrp.CFrame + dir * movSettings.cfrmSpeedVal * 0.01
         end
     end)
 end
@@ -1594,20 +1632,24 @@ local function startVelSpeed()
 end
 startVelSpeed()
 
-SpeedSection:Toggle({
+local cfrmToggle = SpeedSection:Toggle({
     Name = "cframe speed", Flag = "cfrmSpeed", Default = false,
     Callback = function(v) movSettings.cfrmSpeed = v end
-}):Keybind({ Flag = "cfrmSpeedBind", Mode = "Toggle" })
+})
+cfrmToggle:Keybind({ Flag = "cfrmSpeedBind", Default = "None", Mode = "Toggle",
+    Callback = function(v) cfrmToggle:Set(v) end })
 SpeedSection:Slider({
-    Name = "cframe speed value", Flag = "cfrmSpeedVal", Default = 50, Min = 1, Max = 300,
+    Name = "cframe speed value", Flag = "cfrmSpeedVal", Default = 27, Min = 1, Max = 300,
     Callback = function(v) movSettings.cfrmSpeedVal = v end
 })
-SpeedSection:Toggle({
+local velToggle = SpeedSection:Toggle({
     Name = "velocity speed", Flag = "velSpeed", Default = false,
     Callback = function(v) movSettings.velSpeed = v end
-}):Keybind({ Flag = "velSpeedBind", Mode = "Toggle" })
+})
+velToggle:Keybind({ Flag = "velSpeedBind", Default = "None", Mode = "Toggle",
+    Callback = function(v) velToggle:Set(v) end })
 SpeedSection:Slider({
-    Name = "velocity speed value", Flag = "velSpeedVal", Default = 50, Min = 1, Max = 300,
+    Name = "velocity speed value", Flag = "velSpeedVal", Default = 30, Min = 1, Max = 300,
     Callback = function(v) movSettings.velSpeedVal = v end
 })
 
@@ -1642,21 +1684,23 @@ local function startFly()
         if userinput:IsKeyDown(Enum.KeyCode.Space) then vel = vel + Vector3.new(0,1,0) end
         if userinput:IsKeyDown(Enum.KeyCode.LeftShift) then vel = vel - Vector3.new(0,1,0) end
         if vel.Magnitude > 0 then
-            hrp.CFrame = hrp.CFrame + vel.Unit * speed
+            hrp.CFrame = hrp.CFrame + vel.Unit * (speed * 0.1)
         end
         hrp.AssemblyLinearVelocity = Vector3.new()
     end)
 end
 
-FlySection:Toggle({
+local flyToggle = FlySection:Toggle({
     Name = "enabled", Flag = "flyEnabled", Default = false,
     Callback = function(v)
         movSettings.flyEnabled = v
         if v then startFly() else stopFly() end
     end
-}):Keybind({ Flag = "flyBind", Mode = "Toggle" })
+})
+flyToggle:Keybind({ Flag = "flyBind", Default = "None", Mode = "Toggle",
+    Callback = function(v) flyToggle:Set(v) end })
 FlySection:Slider({
-    Name = "speed", Flag = "flySpeed", Default = 10, Min = 1, Max = 100,
+    Name = "speed", Flag = "flySpeed", Default = 5, Min = 1, Max = 100,
     Callback = function(v) movSettings.flySpeed = v end
 })
 
@@ -1727,7 +1771,7 @@ local function startNoclip()
     end)
 end
 
-MiscMovSection:Toggle({
+local noclipToggle = MiscMovSection:Toggle({
     Name = "noclip", Flag = "noclip", Default = false,
     Callback = function(v)
         movSettings.noclip = v
@@ -1740,7 +1784,9 @@ MiscMovSection:Toggle({
             end
         end
     end
-}):Keybind({ Flag = "noclipBind", Mode = "Toggle" })
+})
+noclipToggle:Keybind({ Flag = "noclipBind", Default = "None", Mode = "Toggle",
+    Callback = function(v) noclipToggle:Set(v) end })
 
 -- Bhop
 local function startBhop()
@@ -1757,17 +1803,19 @@ local function startBhop()
     end)
 end
 
-MiscMovSection:Toggle({
+local bhopToggle = MiscMovSection:Toggle({
     Name = "bunny hop", Flag = "bhop", Default = false,
     Callback = function(v)
         movSettings.bhop = v
         if v then startBhop() end
     end
-}):Keybind({ Flag = "bhopBind", Mode = "Toggle" })
+})
+bhopToggle:Keybind({ Flag = "bhopBind", Default = "None", Mode = "Toggle",
+    Callback = function(v) bhopToggle:Set(v) end })
 
 -- Jump power
 MiscMovSection:Slider({
-    Name = "jump power", Flag = "jumpPower", Default = 50, Min = 0, Max = 300,
+    Name = "jump power", Flag = "jumpPower", Default = 7, Min = 0, Max = 300,
     Callback = function(v)
         local char = localplayer.Character
         local hum  = char and char:FindFirstChildOfClass("Humanoid")
@@ -1816,11 +1864,32 @@ local get_best_target = WYNF_SECURE_CALL(function(cam)
         part = part or hrp
         local s, on = cam:WorldToViewportPoint(part.Position)
         if not on then continue end
-        local dist = (Vector2.new(s.X, s.Y) - center).Magnitude
-        if dist < settings.aimfov and dist < best_dist then
-            best_dist   = dist
-            best_part   = part
-            best_player = player
+
+        -- screen distance always needed for fov check
+        local screenDist = (Vector2.new(s.X, s.Y) - center).Magnitude
+        if screenDist > settings.aimfov then continue end
+
+        local score
+        if settings.priority == "lowest health" then
+            score = hum.Health  -- lower = better, so negate below
+            if not best_player or score < best_dist then
+                best_dist   = score
+                best_part   = part
+                best_player = player
+            end
+        elseif settings.priority == "closest distance" then
+            score = (cam.CFrame.Position - hrp.Position).Magnitude
+            if score < best_dist then
+                best_dist   = score
+                best_part   = part
+                best_player = player
+            end
+        else -- "closest to crosshair" (default)
+            if screenDist < best_dist then
+                best_dist   = screenDist
+                best_part   = part
+                best_player = player
+            end
         end
     end
 
