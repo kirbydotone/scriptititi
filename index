@@ -96,10 +96,11 @@ local hitSettings = {
 }
 
 local weaponSettings = {
-    noRecoil     = false,
-    noSpread     = false,
-    fireRate     = false,
-    fireRateMult = 2,
+    noRecoil      = false,
+    noSpread      = false,
+    fireRate      = false,
+    fireRateMult  = 2,
+    instantReload = false,
 }
 
 local hitmarkerSettings = {
@@ -838,6 +839,32 @@ noSpreadToggle:Keybind({ Flag = "noSpreadBind", Default = "None", Mode = "Toggle
 local rapidFireToggle = WeaponSection:Toggle({ Name = "rapid fire", Flag = "fireRate", Default = false, Callback = function(v) weaponSettings.fireRate = v end })
 rapidFireToggle:Keybind({ Flag = "rapidFireBind", Default = "None", Mode = "Toggle", Callback = function(v) rapidFireToggle:Set(v) end })
 WeaponSection:Slider({ Name = "firerate multiplier", Flag = "fireRateMult", Default = 2, Min = 1, Max = 10, Callback = function(v) weaponSettings.fireRateMult = v end })
+
+local _reloadHooked = {}
+local function patchReloadTracks(enabled)
+    for _, t in getgc(true) do
+        pcall(function()
+            if typeof(t) == "Instance" and t:IsA("AnimationTrack") and t.Name == "Reload" then
+                t:AdjustSpeed(enabled and 99 or 1)
+                if enabled and not _reloadHooked[t] then
+                    _reloadHooked[t] = true
+                    t.Played:Connect(function()
+                        if weaponSettings.instantReload then
+                            pcall(function() t:AdjustSpeed(99) end)
+                        end
+                    end)
+                end
+            end
+        end)
+    end
+end
+
+local instantReloadToggle = WeaponSection:Toggle({
+    Name = "instant reload", Flag = "instantReload", Default = false,
+    Callback = function(v) weaponSettings.instantReload = v; patchReloadTracks(v) end
+})
+instantReloadToggle:Keybind({ Flag = "instantReloadBind", Default = "None", Mode = "Toggle",
+    Callback = function(v) instantReloadToggle:Set(v) end })
 
 WeaponSection2:Toggle({ Name = "hitmarker",     Flag = "hitmarkerEnabled", Default = false, Callback = function(v) hitmarkerSettings.enabled = v end })
 WeaponSection2:Toggle({ Name = "hit indicator", Flag = "hitIndicator",     Default = false, Callback = function(v) hitIndicatorSettings.enabled = v end })
@@ -1679,6 +1706,7 @@ local function buildConfig()
 
         -- ─── Weapon Mods ───
         noRecoil         = weaponSettings.noRecoil,
+        instantReload    = weaponSettings.instantReload,
         noSpread         = weaponSettings.noSpread,
         fireRate         = weaponSettings.fireRate,
         fireRateMult     = weaponSettings.fireRateMult,
@@ -1853,7 +1881,8 @@ local function loadConfig(name)
     if r.noRecoil     ~= nil then weaponSettings.noRecoil     = r.noRecoil;     applyFlag("noRecoil",    r.noRecoil)     end
     if r.noSpread     ~= nil then weaponSettings.noSpread     = r.noSpread;     applyFlag("noSpread",    r.noSpread)     end
     if r.fireRate     ~= nil then weaponSettings.fireRate     = r.fireRate;     applyFlag("fireRate",    r.fireRate)     end
-    if r.fireRateMult ~= nil then weaponSettings.fireRateMult = r.fireRateMult; applyFlag("fireRateMult", r.fireRateMult) end
+    if r.fireRateMult   ~= nil then weaponSettings.fireRateMult   = r.fireRateMult;   applyFlag("fireRateMult",   r.fireRateMult)   end
+    if r.instantReload  ~= nil then weaponSettings.instantReload  = r.instantReload;  applyFlag("instantReload",  r.instantReload)  end
 
     -- ─── Hitmarker ───
     if r.hitmarkerEnabled   ~= nil then hitmarkerSettings.enabled   = r.hitmarkerEnabled;        applyFlag("hitmarkerEnabled",  r.hitmarkerEnabled)   end
@@ -2067,21 +2096,38 @@ local HitLogSection  = SettingsTab:Section({ Name = "hit log",  Side = 2 })
 
 EffectsSection:Toggle({
     Name    = "background blur",
+    Flag    = "guiBlur",
     Default = false,
     Callback = function(v)
         menuBlurEnabled = v
-        setMenuBlur(v)
+        -- only apply if menu is open right now
+        if Window.IsOpen then setMenuBlur(v) end
     end
 })
 
 EffectsSection:Toggle({
     Name    = "background snow",
+    Flag    = "guiSnow",
     Default = false,
     Callback = function(v)
         menuSnowEnabled = v
-        if v then startMenuSnow() else stopMenuSnow() end
+        if v and Window.IsOpen then startMenuSnow()
+        elseif not v then stopMenuSnow() end
     end
 })
+
+-- hook SetOpen to drive blur/snow with menu state
+local _scootSetOpen = Window.SetOpen
+Window.SetOpen = function(self, bool, ...)
+    _scootSetOpen(self, bool, ...)
+    if bool then
+        if menuBlurEnabled then setMenuBlur(true) end
+        if menuSnowEnabled then startMenuSnow() end
+    else
+        setMenuBlur(false)
+        stopMenuSnow()
+    end
+end
 
 if not isMobile then
     MenuSection:Label("menu keybind"):Keybind({
