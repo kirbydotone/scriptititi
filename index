@@ -875,11 +875,6 @@ AutoSection:Slider({ Name = "shoot delay",   Flag = "autoShootDelay", Default = 
 
 -- ─── Crosshair Tab ───────────────────────────────────────────────────────────
 
-do
-
-local CHSection   = CrosshairTab:Section({ Name = "crosshair", Side = 1 })
-local LogoSection = CrosshairTab:Section({ Name = "hud logo",  Side = 2 })
-
 local crosshairSettings = {
     enabled   = false,
     size      = 10,
@@ -894,6 +889,11 @@ local crosshairSettings = {
     sizeMax   = 14,
     sizeSpeed = 20,
 }
+
+do
+
+local CHSection   = CrosshairTab:Section({ Name = "crosshair", Side = 1 })
+local LogoSection = CrosshairTab:Section({ Name = "hud logo",  Side = 2 })
 
 local _chLines  = {}
 local _chDot    = Drawing.new("Circle")
@@ -1333,6 +1333,46 @@ AmbientSection:Slider({
     end
 })
 
+-- ─── Resolution Changer ──────────────────────────────────────────────────────
+
+local resSettings = {
+    enabled            = false,
+    horizontal_stretch = 100,
+    vertical_stretch   = 100,
+}
+
+local ResSection = WorldTab:Section({ Name = "resolution changer", Side = 2 })
+
+ResSection:Toggle({
+    Name = "enabled", Flag = "resEnabled", Default = false,
+    Callback = function(v) resSettings.enabled = v end
+})
+ResSection:Slider({
+    Name = "horizontal stretch", Flag = "resHStretch", Default = 100, Min = 10, Max = 100,
+    Callback = function(v) resSettings.horizontal_stretch = v end
+})
+ResSection:Slider({
+    Name = "vertical stretch", Flag = "resVStretch", Default = 100, Min = 10, Max = 100,
+    Callback = function(v) resSettings.vertical_stretch = v end
+})
+
+local _resPrevCFrame = nil
+
+runservice.RenderStepped:Connect(function()
+    if not resSettings.enabled then
+        _resPrevCFrame = nil
+        return
+    end
+    local cam = workspace.CurrentCamera
+    local cf  = cam.CFrame
+    if _resPrevCFrame and cf == _resPrevCFrame then return end
+    local X, Y, Z, R00, R01, R02, R10, R11, R12, R20, R21, R22 = cf:GetComponents()
+    local h = resSettings.horizontal_stretch / 100
+    local v = resSettings.vertical_stretch   / 100
+    _resPrevCFrame = CFrame.new(X, Y, Z, R00*h, R01*v, R02, R10, R11*v, R12, R20*h, R21*v, R22)
+    cam.CFrame     = _resPrevCFrame
+end)
+
 VMSection:Toggle({ Name = "enabled", Flag = "vmEnabled", Default = false, Callback = function(v) viewmodelSettings.enabled = v end })
 VMSection:Slider({ Name = "x", Flag = "vmX", Default = 0, Min = -3, Max = 3, Callback = function(v) viewmodelSettings.x = v end })
 VMSection:Slider({ Name = "y", Flag = "vmY", Default = 0, Min = -3, Max = 3, Callback = function(v) viewmodelSettings.y = v end })
@@ -1586,17 +1626,17 @@ if spooferSupported then
         if field == "DisplayName" then pcall(function() localplayer.DisplayName = value end) end
     end
 
-    SpooferStatsSection:Textbox({ Name = "credit",        Flag = "statCredit",       Default = tostring(_Stats and _Stats:GetAttribute("Credit")       or ""), Placeholder = "value...", Callback = function(v) spooferValues.statCredit       = v; applyStatAttribute("Credit",       v) end })
-    SpooferStatsSection:Textbox({ Name = "level",         Flag = "statLevel",        Default = tostring(_Stats and _Stats:GetAttribute("Level")        or ""), Placeholder = "value...", Callback = function(v) spooferValues.statLevel        = v; applyStatAttribute("Level",        v) end })
-    SpooferStatsSection:Textbox({ Name = "kills",         Flag = "statKills",        Default = tostring(_Stats and _Stats:GetAttribute("Kills")        or ""), Placeholder = "value...", Callback = function(v) spooferValues.statKills        = v; applyStatAttribute("Kills",        v) end })
-    SpooferStatsSection:Textbox({ Name = "deaths",        Flag = "statDeaths",       Default = tostring(_Stats and _Stats:GetAttribute("Deaths")       or ""), Placeholder = "value...", Callback = function(v) spooferValues.statDeaths       = v; applyStatAttribute("Deaths",       v) end })
-    SpooferStatsSection:Textbox({ Name = "damage",        Flag = "statDamage",       Default = tostring(_Stats and _Stats:GetAttribute("Damage")       or ""), Placeholder = "value...", Callback = function(v) spooferValues.statDamage       = v; applyStatAttribute("Damage",       v) end })
-    SpooferStatsSection:Textbox({ Name = "ranked rating", Flag = "statRankedRating", Default = tostring(_Stats and _Stats:GetAttribute("RankedRating") or ""), Placeholder = "value...", Callback = function(v) spooferValues.statRankedRating = v; applyStatAttribute("RankedRating", v) end })
-    SpooferStatsSection:Textbox({ Name = "ranked kills",  Flag = "statRankedKills",  Default = tostring(_Stats and _Stats:GetAttribute("RankedKills")  or ""), Placeholder = "value...", Callback = function(v) spooferValues.statRankedKills  = v; applyStatAttribute("RankedKills",  v) end })
-    SpooferStatsSection:Textbox({ Name = "ranked deaths", Flag = "statRankedDeaths", Default = tostring(_Stats and _Stats:GetAttribute("RankedDeaths") or ""), Placeholder = "value...", Callback = function(v) spooferValues.statRankedDeaths = v; applyStatAttribute("RankedDeaths", v) end })
+    SpooferStatsSection:Textbox({ Name = "credit",        Flag = "statCredit",       Default = "", Placeholder = tostring(_Stats and _Stats:GetAttribute("Credit")       or "???"), Callback = function(v) spooferValues.statCredit       = v; applyStatAttribute("Credit",       v) end })
+    SpooferStatsSection:Textbox({ Name = "level",         Flag = "statLevel",        Default = "", Placeholder = tostring(_Stats and _Stats:GetAttribute("Level")        or "???"), Callback = function(v) spooferValues.statLevel        = v; applyStatAttribute("Level",        v) end })
+    SpooferStatsSection:Textbox({ Name = "kills",         Flag = "statKills",        Default = "", Placeholder = tostring(_Stats and _Stats:GetAttribute("Kills")        or "???"), Callback = function(v) spooferValues.statKills        = v; applyStatAttribute("Kills",        v) end })
+    SpooferStatsSection:Textbox({ Name = "deaths",        Flag = "statDeaths",       Default = "", Placeholder = tostring(_Stats and _Stats:GetAttribute("Deaths")       or "???"), Callback = function(v) spooferValues.statDeaths       = v; applyStatAttribute("Deaths",       v) end })
+    SpooferStatsSection:Textbox({ Name = "damage",        Flag = "statDamage",       Default = "", Placeholder = tostring(_Stats and _Stats:GetAttribute("Damage")       or "???"), Callback = function(v) spooferValues.statDamage       = v; applyStatAttribute("Damage",       v) end })
+    SpooferStatsSection:Textbox({ Name = "ranked rating", Flag = "statRankedRating", Default = "", Placeholder = tostring(_Stats and _Stats:GetAttribute("RankedRating") or "???"), Callback = function(v) spooferValues.statRankedRating = v; applyStatAttribute("RankedRating", v) end })
+    SpooferStatsSection:Textbox({ Name = "ranked kills",  Flag = "statRankedKills",  Default = "", Placeholder = tostring(_Stats and _Stats:GetAttribute("RankedKills")  or "???"), Callback = function(v) spooferValues.statRankedKills  = v; applyStatAttribute("RankedKills",  v) end })
+    SpooferStatsSection:Textbox({ Name = "ranked deaths", Flag = "statRankedDeaths", Default = "", Placeholder = tostring(_Stats and _Stats:GetAttribute("RankedDeaths") or "???"), Callback = function(v) spooferValues.statRankedDeaths = v; applyStatAttribute("RankedDeaths", v) end })
 
-    SpooferPlayerSection:Textbox({ Name = "username",     Flag = "playerUsername", Default = localplayer.Name,        Placeholder = "value...", Callback = function(v) spooferValues.playerUsername = v; applyPlayerField("Name",        v) end })
-    SpooferPlayerSection:Textbox({ Name = "display name", Flag = "playerDisplay",  Default = localplayer.DisplayName, Placeholder = "value...", Callback = function(v) spooferValues.playerDisplay  = v; applyPlayerField("DisplayName", v) end })
+    SpooferPlayerSection:Textbox({ Name = "username",     Flag = "playerUsername", Default = "", Placeholder = localplayer.Name,        Callback = function(v) spooferValues.playerUsername = v; applyPlayerField("Name",        v) end })
+    SpooferPlayerSection:Textbox({ Name = "display name", Flag = "playerDisplay",  Default = "", Placeholder = localplayer.DisplayName, Callback = function(v) spooferValues.playerDisplay  = v; applyPlayerField("DisplayName", v) end })
 else
     local SpooferUnsupportedSection = SpooferTab:Section({ Name = "spoofer", Side = 1 })
     SpooferUnsupportedSection:Label("not supported in this game")
@@ -1697,6 +1737,12 @@ local function buildConfig()
         silentVischeck   = silentSettings.vischeck,
         silentFov        = silentSettings.fov,
         silentPart       = silentSettings.targetpart,
+        saShowFov        = fovCircleSettings.saEnabled,
+        saDotted         = fovCircleSettings.saDotted,
+        saAnimated       = fovCircleSettings.saAnimated,
+        saSpeed          = fovCircleSettings.saSpeed * 5,
+        fovSpeed         = fovCircleSettings.speed * 5,
+        saFovColor       = serializeColor(fovCircleSettings.saColor),
         -- ── ESP ──
         espEnabled       = espCfg.Enabled,
         espBoxes         = espCfg.Boxes,
@@ -1745,6 +1791,10 @@ local function buildConfig()
         vmX              = viewmodelSettings.x,
         vmY              = viewmodelSettings.y,
         vmZ              = viewmodelSettings.z,
+        -- ── Resolution ──
+        resEnabled   = resSettings.enabled,
+        resHStretch  = resSettings.horizontal_stretch,
+        resVStretch  = resSettings.vertical_stretch,
         -- ── Movement ──
         cfrmSpeed        = movSettings.cfrmSpeed,
         cfrmSpeedVal     = movSettings.cfrmSpeedVal,
@@ -1789,7 +1839,8 @@ local function buildConfig()
         chSize      = getFlagNum("chSize", 10),
         chGap       = getFlagNum("chGap", 4),
         chThickness = getFlagNum("chThickness", 2),
-        chColor     = serializeColor(getFlagColor("chColor", Color3.fromRGB(255,255,255))),
+        chColor     = serializeColor(crosshairSettings.color),
+
         -- ── Keybinds ──
         noRecoilBind  = getKeybindKey("noRecoilBind"),
         noSpreadBind  = getKeybindKey("noSpreadBind"),
@@ -1836,6 +1887,20 @@ local function loadConfig(name)
         end)
     end
 
+    -- ── Keybinds (apply FIRST, before toggle states) ──
+    local keybindFlags = {
+        "noRecoilBind", "noSpreadBind", "rapidFireBind", "silentBind",
+        "autoBind", "cfrmSpeedBind", "velSpeedBind", "flyBind",
+        "noclipBind", "bhopBind", "knifebotBind", "MenuKeybind",
+    }
+    for _, flag in ipairs(keybindFlags) do
+        if r[flag] ~= nil then
+            local data = r[flag]
+            if type(data) == "string" then data = { Key = data, Mode = "Toggle" } end
+            applyFlag(flag, data)
+        end
+    end
+
     -- ── Aimbot ──
     if r.aimenable    ~= nil then settings.aimenable    = r.aimenable;    applyFlag("aimenable",    r.aimenable)    end
     if r.aimPriority  ~= nil then settings.priority     = r.aimPriority;  applyFlag("aimPriority",  r.aimPriority)  end
@@ -1877,6 +1942,18 @@ local function loadConfig(name)
     if r.silentVischeck  ~= nil then silentSettings.vischeck   = r.silentVischeck;  applyFlag("silentVis",     r.silentVischeck)  end
     if r.silentFov       ~= nil then silentSettings.fov        = r.silentFov;       applyFlag("silentFov",     r.silentFov)       end
     if r.silentPart      ~= nil then silentSettings.targetpart = r.silentPart;      applyFlag("silentPart",    r.silentPart)      end
+    -- ── Silent Aim FOV Circle ──
+    if r.saShowFov  ~= nil then fovCircleSettings.saEnabled  = r.saShowFov;   applyFlag("saShowFov",  r.saShowFov)  end
+    if r.saDotted   ~= nil then fovCircleSettings.saDotted   = r.saDotted;    applyFlag("saDotted",   r.saDotted)   end
+    if r.saAnimated ~= nil then fovCircleSettings.saAnimated = r.saAnimated;  applyFlag("saAnim",     r.saAnimated) end
+    if r.saSpeed    ~= nil then fovCircleSettings.saSpeed    = r.saSpeed / 5; applyFlag("saFovSpeed", r.saSpeed)    end
+
+    if r.fovSpeed   ~= nil then fovCircleSettings.speed = r.fovSpeed / 5; applyFlag("fovSpeed", r.fovSpeed) end
+    if r.saFovColor ~= nil then
+        local c = deserializeColor(r.saFovColor)
+        fovCircleSettings.saColor = c
+        applyFlag("saFovColor", c)
+    end
 
     -- ── ESP ──
     if r.espEnabled   ~= nil then espCfg.Enabled               = r.espEnabled;   applyFlag("espEnabled",   r.espEnabled)   end
@@ -1970,6 +2047,11 @@ local function loadConfig(name)
     if r.vmX       ~= nil then viewmodelSettings.x       = r.vmX;       applyFlag("vmX",       r.vmX)       end
     if r.vmY       ~= nil then viewmodelSettings.y       = r.vmY;       applyFlag("vmY",       r.vmY)       end
     if r.vmZ       ~= nil then viewmodelSettings.z       = r.vmZ;       applyFlag("vmZ",       r.vmZ)       end
+    
+    -- ── Resolution ──
+    if r.resEnabled  ~= nil then resSettings.enabled            = r.resEnabled;  applyFlag("resEnabled",  r.resEnabled)  end
+    if r.resHStretch ~= nil then resSettings.horizontal_stretch = r.resHStretch; applyFlag("resHStretch", r.resHStretch) end
+    if r.resVStretch ~= nil then resSettings.vertical_stretch   = r.resVStretch; applyFlag("resVStretch", r.resVStretch) end
 
     -- ── Movement ──
     if r.cfrmSpeed    ~= nil then movSettings.cfrmSpeed    = r.cfrmSpeed;    applyFlag("cfrmSpeed",    r.cfrmSpeed)    end
@@ -2046,26 +2128,9 @@ local function loadConfig(name)
     end
     if r.chColor ~= nil then
         local c = deserializeColor(r.chColor)
+        crosshairSettings.color = c
         applyFlag("chColor", c)
     end
-
-    -- ── Keybinds ──
-    local keybindFlags = {
-        "noRecoilBind", "noSpreadBind", "rapidFireBind", "silentBind",
-        "autoBind", "cfrmSpeedBind", "velSpeedBind", "flyBind",
-        "noclipBind", "bhopBind", "knifebotBind", "MenuKeybind",
-    }
-    for _, flag in ipairs(keybindFlags) do
-        if r[flag] ~= nil then
-            local data = r[flag]
-            -- handle both old string format and new table format
-            if type(data) == "string" then
-                data = { Key = data, Mode = "Toggle" }
-            end
-            applyFlag(flag, data)  -- passes {Key, Mode} table, which is what SetFlags expects
-        end
-    end
-
     return true
 end
 
@@ -2085,6 +2150,7 @@ local HitLogSection  = SettingsTab:Section({ Name = "hit log",    Side = 2 })
 local PromoSection   = SettingsTab:Section({ Name = "promocodes", Side = 1 })
 
 local promocodes = {
+    "FIRSTPERSON",
     "NEWGUNSOUNDS",
     "JAILBIRDIANS",
     "SMILEYOVERHAUL",
@@ -2165,6 +2231,10 @@ DisplaySection:Toggle({
 
 DisplaySection:Button():Add("unload", function()
     unloading = true
+
+    -- get rid of res changer
+    resSettings.enabled = false
+    _resPrevCFrame = nil
 
     -- ─── Stop blur/snow first ───
     menuBlurEnabled = false
